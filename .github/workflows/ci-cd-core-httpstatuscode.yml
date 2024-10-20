@@ -1,0 +1,29 @@
+name: Trelnex.Core.HttpStatusCode Workflow
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/nuget.yml
+      - .github/workflows/ci-cd-core-httpstatuscode.yml
+      - Trelnex.Core.HttpStatusCode/**
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/nuget.yml
+      - .github/workflows/ci-cd-core-httpstatuscode.yml
+      - Trelnex.Core.HttpStatusCode/**
+  workflow_dispatch:
+
+jobs:
+
+  # ---------------------------------------------------------------------
+  # 1. Restore, Build, Tag, Pack and Push
+  # ---------------------------------------------------------------------
+  build:
+    uses: ./.github/workflows/nuget.yml
+
+    with:
+      project_name: 'Trelnex.Core.HttpStatusCode'
+      tag_prefix: 'trelnex-core-httpstatuscode-'
+
+    secrets: inherit
