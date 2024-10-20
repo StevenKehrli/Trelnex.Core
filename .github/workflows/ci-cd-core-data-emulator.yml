@@ -26,6 +26,6 @@ jobs:
 
     with:
       project_name: 'Trelnex.Core.Data.Emulator'
-      tag_prefix: 'trelnex-core-data-emulator'
+      tag_prefix: 'trelnex-core-data-emulator-'
 
     secrets: inherit
