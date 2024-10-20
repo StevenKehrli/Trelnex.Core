@@ -1,0 +1,34 @@
+name: Trelnex.Core.Data.Emulator Workflow
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/nuget.yml
+      - .github/workflows/ci-cd-core-data-emulator.yml
+      - Trelnex.Core.Data/**
+      - Trelnex.Core.Data.Emulator/**
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/nuget.yml
+      - .github/workflows/ci-cd-core-data-emulator.yml
+      - Trelnex.Core.Data/**
+      - Trelnex.Core.Data.Emulator/**
+  workflow_dispatch:
+
+jobs:
+
+  # ---------------------------------------------------------------------
+  # 1. Restore, Build, Tag, Pack and Push
+  # ---------------------------------------------------------------------
+  build:
+    uses: ./.github/workflows/nuget.yml
+
+    needs:
+      - test
+
+    with:
+      project_name: 'Trelnex.Core.Data.Emulator'
+      tag_prefix: 'trelnex-core-data-emulator'
+
+    secrets: inherit
