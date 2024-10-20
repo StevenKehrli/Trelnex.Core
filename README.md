@@ -486,3 +486,17 @@ In this example, we configure a command provider for the `IUser` interface and i
 </details>
 
 ## Specflow
+
+<details>
+
+<summary>Expand</summary>
+
+&nbsp;
+
+[SpecFlow](https://specflow.org/) is a powerful BDD (Behavior-Driven Development) framework using Gherkin to describe test cases.
+
+The [Vertical Slice Architecture](#vertical-slice-architecture) simplifies this integration testing of the HTTP REST APIs. Instead of invoke the HTTP endpoint, we invoke the `HandleRequest` method.
+
+See [Trelnex.Samples](https://github.com/StevenKehrli/Trelnex.Samples?tab=readme-ov-file#trelnexintegrationtests) for more information.
+
+</details>
