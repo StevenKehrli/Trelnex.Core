@@ -1,0 +1,29 @@
+name: Trelnex.Core.Client Workflow
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/nuget.yml
+      - .github/workflows/ci-cd-core-client.yml
+      - Trelnex.Core.Client/**
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/nuget.yml
+      - .github/workflows/ci-cd-core-client.yml
+      - Trelnex.Core.Client/**
+  workflow_dispatch:
+
+jobs:
+
+  # ---------------------------------------------------------------------
+  # 1. Restore, Build, Tag, Pack and Push
+  # ---------------------------------------------------------------------
+  build:
+    uses: ./.github/workflows/nuget.yml
+
+    with:
+      project_name: 'Trelnex.Core.Client'
+      tag_prefix: 'trelnex-core-client-'
+
+    secrets: inherit
