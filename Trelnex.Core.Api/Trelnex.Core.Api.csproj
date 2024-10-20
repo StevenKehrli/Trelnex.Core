@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageId>Trelnex.Core.Api</PackageId>
+        <PackageLicenseFile>LICENSE</PackageLicenseFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/StevenKehrli/Trelnex.Core</RepositoryUrl>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Trelnex.Core.Api</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="LICENSE" Pack="true" PackagePath="" />
+        <None Include="README.md" Pack="true" PackagePath="" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Azure.Security.KeyVault.Keys" Version="4.6.0" />
+        <PackageReference Include="Microsoft.Identity.Web" Version="3.1.0" />
+        <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
+        <PackageReference Include="prometheus-net.AspNetCore.HealthChecks" Version="8.2.1" />
+        <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
+        <PackageReference Include="Serilog.Expressions" Version="5.0.0" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.8.1" />
+        <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.8.1" />
+        <PackageReference Include="Trelnex.Core.Client" Version="1.0.0" />
+        <PackageReference Include="Trelnex.Core.Data" Version="1.0.0" />
+    </ItemGroup>
+
+</Project>
