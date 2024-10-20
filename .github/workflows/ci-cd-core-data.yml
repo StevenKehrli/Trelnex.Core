@@ -1,0 +1,42 @@
+name: Trelnex.Core.Data Workflow
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/nuget.yml
+      - .github/workflows/ci-cd-core-data.yml
+      - Trelnex.Core.Data/**
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/nuget.yml
+      - .github/workflows/ci-cd-core-data.yml
+      - Trelnex.Core.Data/**
+  workflow_dispatch:
+
+jobs:
+
+  # ---------------------------------------------------------------------
+  # 1. Test
+  # ---------------------------------------------------------------------
+  test:
+    name: Trelnex.Core.Data.Tests
+    uses: ./.github/workflows/test.yml
+
+    with:
+      project_name: 'Trelnex.Core.Data.Tests'
+
+  # ---------------------------------------------------------------------
+  # 2. Restore, Build, Tag, Pack and Push
+  # ---------------------------------------------------------------------
+  build:
+    uses: ./.github/workflows/nuget.yml
+
+    needs:
+      - test
+
+    with:
+      project_name: 'Trelnex.Core.Data'
+      tag_prefix: 'trelnex-core-data-'
+
+    secrets: inherit

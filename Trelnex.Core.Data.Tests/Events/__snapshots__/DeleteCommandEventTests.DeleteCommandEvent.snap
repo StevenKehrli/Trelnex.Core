@@ -1,0 +1,57 @@
+﻿[
+  {
+    "SaveAction": "CREATED",
+    "RelatedId": "bc4971e4-6dae-45ba-b3ee-43c036e0d957",
+    "RelatedTypeName": "item-test",
+    "Changes": [
+      {
+        "PropertyName": "publicId",
+        "OldValue": {
+          "ValueKind": "Number"
+        },
+        "NewValue": {
+          "ValueKind": "Number"
+        }
+      },
+      {
+        "PropertyName": "publicMessage",
+        "OldValue": null,
+        "NewValue": {
+          "ValueKind": "String"
+        }
+      }
+    ],
+    "Context": {
+      "ObjectId": "587e11f5-ffde-4bb7-8c2c-a6778e14f21c",
+      "HttpTraceIdentifier": "10493abd-aedc-402f-9ca7-244407aac87f",
+      "HttpRequestPath": "69e2466f-53e8-4040-8f77-f723f89a2546"
+    },
+    "Id": "98e68844-e860-4e67-b56f-e503e34f5053",
+    "PartitionKey": "60525a8e-b084-4a37-b461-d08330760ef2",
+    "TypeName": "event",
+    "CreatedDate": "2024-10-19T00:32:26.05742Z",
+    "UpdatedDate": "2024-10-19T00:32:26.05742Z",
+    "DeletedDate": null,
+    "IsDeleted": null,
+    "ETag": "eb80c99b-54b0-4b83-a9a7-95e7e0e5eb85"
+  },
+  {
+    "SaveAction": "DELETED",
+    "RelatedId": "bc4971e4-6dae-45ba-b3ee-43c036e0d957",
+    "RelatedTypeName": "item-test",
+    "Changes": null,
+    "Context": {
+      "ObjectId": "587e11f5-ffde-4bb7-8c2c-a6778e14f21c",
+      "HttpTraceIdentifier": "10493abd-aedc-402f-9ca7-244407aac87f",
+      "HttpRequestPath": "69e2466f-53e8-4040-8f77-f723f89a2546"
+    },
+    "Id": "e475fa35-beec-4c33-9109-40ab7f666af6",
+    "PartitionKey": "60525a8e-b084-4a37-b461-d08330760ef2",
+    "TypeName": "event",
+    "CreatedDate": "2024-10-19T00:32:26.057544Z",
+    "UpdatedDate": "2024-10-19T00:32:26.057544Z",
+    "DeletedDate": null,
+    "IsDeleted": null,
+    "ETag": "8735843a-f134-426b-9fd3-2d040d956b39"
+  }
+]

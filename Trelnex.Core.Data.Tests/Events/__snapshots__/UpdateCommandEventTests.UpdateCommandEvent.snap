@@ -1,0 +1,76 @@
+﻿[
+  {
+    "SaveAction": "CREATED",
+    "RelatedId": "404d6b21-f7ba-48c4-813c-7d3b5bf4f549",
+    "RelatedTypeName": "item-test",
+    "Changes": [
+      {
+        "PropertyName": "publicId",
+        "OldValue": {
+          "ValueKind": "Number"
+        },
+        "NewValue": {
+          "ValueKind": "Number"
+        }
+      },
+      {
+        "PropertyName": "publicMessage",
+        "OldValue": null,
+        "NewValue": {
+          "ValueKind": "String"
+        }
+      }
+    ],
+    "Context": {
+      "ObjectId": "53517dbf-071c-4fb9-a022-7196b94c5037",
+      "HttpTraceIdentifier": "860a17e6-bd99-4058-acb1-a09be2f15b5e",
+      "HttpRequestPath": "75ef4c3d-78ae-406c-901e-bff5fb8ad1a0"
+    },
+    "Id": "b67b6b3b-bd20-4f45-b46d-299937942b55",
+    "PartitionKey": "d9a7a840-ce5c-43c9-9839-a8432068b197",
+    "TypeName": "event",
+    "CreatedDate": "2024-10-19T00:32:26.064538Z",
+    "UpdatedDate": "2024-10-19T00:32:26.064538Z",
+    "DeletedDate": null,
+    "IsDeleted": null,
+    "ETag": "a7341433-13ab-40f4-971c-9c3701e9f37d"
+  },
+  {
+    "SaveAction": "UPDATED",
+    "RelatedId": "404d6b21-f7ba-48c4-813c-7d3b5bf4f549",
+    "RelatedTypeName": "item-test",
+    "Changes": [
+      {
+        "PropertyName": "publicId",
+        "OldValue": {
+          "ValueKind": "Number"
+        },
+        "NewValue": {
+          "ValueKind": "Number"
+        }
+      },
+      {
+        "PropertyName": "publicMessage",
+        "OldValue": {
+          "ValueKind": "String"
+        },
+        "NewValue": {
+          "ValueKind": "String"
+        }
+      }
+    ],
+    "Context": {
+      "ObjectId": "53517dbf-071c-4fb9-a022-7196b94c5037",
+      "HttpTraceIdentifier": "860a17e6-bd99-4058-acb1-a09be2f15b5e",
+      "HttpRequestPath": "75ef4c3d-78ae-406c-901e-bff5fb8ad1a0"
+    },
+    "Id": "f2cb544e-372a-4a02-9cc0-d2b55ec022bf",
+    "PartitionKey": "d9a7a840-ce5c-43c9-9839-a8432068b197",
+    "TypeName": "event",
+    "CreatedDate": "2024-10-19T00:32:26.065066Z",
+    "UpdatedDate": "2024-10-19T00:32:26.065066Z",
+    "DeletedDate": null,
+    "IsDeleted": null,
+    "ETag": "e0a05109-a9bc-4454-9eb1-a2391b763c72"
+  }
+]
