@@ -24,9 +24,6 @@ jobs:
   build:
     uses: ./.github/workflows/nuget.yml
 
-    needs:
-      - test
-
     with:
       project_name: 'Trelnex.Core.Data.Emulator'
       tag_prefix: 'trelnex-core-data-emulator'
