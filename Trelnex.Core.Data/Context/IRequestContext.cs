@@ -19,9 +19,4 @@ public interface IRequestContext
     /// Gets the portion of the request path that identifies the requested resource.
     /// </summary>
     string? HttpRequestPath { get; }
-
-    /// <summary>
-    /// Gets the value for the Bearer Token Authorization Header.
-    /// </summary>
-    string? HttpBearerToken { get; }
 }

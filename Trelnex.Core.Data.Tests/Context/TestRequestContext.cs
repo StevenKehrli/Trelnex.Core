@@ -10,8 +10,7 @@ internal static class TestRequestContext
         return new RequestContext(
             ObjectId: Guid.NewGuid().ToString(),
             HttpTraceIdentifier: Guid.NewGuid().ToString(),
-            HttpRequestPath: Guid.NewGuid().ToString(),
-            HttpBearerToken: Guid.NewGuid().ToString());
+            HttpRequestPath: Guid.NewGuid().ToString());
     }
 
     /// <summary>
@@ -20,10 +19,8 @@ internal static class TestRequestContext
     /// <param name="ObjectId">Gets the unique object ID associated with the ClaimsPrincipal for this request.</param>
     /// <param name="HttpTraceIdentifier">Gets the unique identifier to represent this request in trace logs.</param>
     /// <param name="HttpRequestPath">Gets the portion of the request path that identifies the requested resource.</param>
-    /// <param name="HttpBearerToken">Gets the value for the Bearer Token Authorization Header.</param>
     private record RequestContext(
         string? ObjectId,
         string? HttpTraceIdentifier,
-        string? HttpRequestPath,
-        string? HttpBearerToken) : IRequestContext;
+        string? HttpRequestPath) : IRequestContext;
 }
