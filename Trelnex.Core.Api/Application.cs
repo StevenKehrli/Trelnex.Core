@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
+using Trelnex.Core.Api.Authentication;
 using Trelnex.Core.Api.Configuration;
 using Trelnex.Core.Api.Context;
 using Trelnex.Core.Api.Exceptions;
@@ -67,6 +68,12 @@ public static class Application
 
         // add the calling application
         addApplication(builder.Services, builder.Configuration, bootstrapLogger);
+
+        // validate authentication was configured
+        if (AuthenticationExtensions.IsReady is false)
+        {
+            throw new InvalidOperationException("Authentication has not been configured.");
+        }
 
         // add prometheus metrics server and http client metrics
         builder.Services.AddPrometheus(builder.Configuration);
