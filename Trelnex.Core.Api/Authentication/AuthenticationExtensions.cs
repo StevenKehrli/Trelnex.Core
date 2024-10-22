@@ -55,6 +55,8 @@ public static class AuthenticationExtensions
 
         _method = nameof(NoAuthentication);
 
+        services.AddHttpContextAccessor();
+
         services.AddAuthentication();
         services.AddAuthorization();
 
