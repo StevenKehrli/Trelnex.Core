@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Identity.Web;
@@ -47,13 +46,10 @@ public static class RequestContextExtensions
 
         var httpRequestPath = httpContext?.Request.Path.Value;
 
-        var httpBearerToken = httpContext?.GetTokenAsync("access_token").GetAwaiter().GetResult();
-
         return new RequestContext(
             ObjectId: objectId,
             HttpTraceIdentifier: httpTraceIdentifier,
-            HttpRequestPath: httpRequestPath,
-            HttpBearerToken: httpBearerToken);
+            HttpRequestPath: httpRequestPath);
     }
 
     /// <summary>
@@ -62,10 +58,8 @@ public static class RequestContextExtensions
     /// <param name="ObjectId">Gets the unique object ID associated with the ClaimsPrincipal for this request.</param>
     /// <param name="HttpTraceIdentifier">Gets the unique identifier to represent this request in trace logs.</param>
     /// <param name="HttpRequestPath">Gets the portion of the request path that identifies the requested resource.</param>
-    /// <param name="HttpBearerToken">Gets the value for the Bearer Token Authorization Header.</param>
     private record RequestContext(
         string? ObjectId,
         string? HttpTraceIdentifier,
-        string? HttpRequestPath,
-        string? HttpBearerToken) : IRequestContext;
+        string? HttpRequestPath) : IRequestContext;
 }
