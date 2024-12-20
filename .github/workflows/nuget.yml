@@ -47,7 +47,7 @@ jobs:
       - name: bump version and push tag
         if: (github.ref == 'refs/heads/main')
         id: tag_version
-        uses: StevenKehrli/Trelnex.MonoTag@v1.0.0
+        uses: StevenKehrli/Trelnex.MonoTag@1.0.0
         with:
           project_path: ${{ inputs.project_name }}
           tag_prefix: ${{ inputs.tag_prefix }}
