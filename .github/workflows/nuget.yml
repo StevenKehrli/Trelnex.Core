@@ -3,6 +3,10 @@ name: Default NuGet Workflow
 on:
   workflow_call:
     inputs:
+      dotnet_version:
+        description: 'The version of the .NET SDK; e.g. 9.0.x'
+        required: true
+        type: string
       project_name:
         description: 'The project name; e.g. Trelnex.Core'
         required: true
@@ -36,7 +40,7 @@ jobs:
       - name: setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: ${{ inputs.dotnet_version }}
 
       - name: dotnet restore
         run: dotnet restore ${{ inputs.project_name }}/${{ inputs.project_name }}.csproj
@@ -58,4 +62,4 @@ jobs:
 
       - name: dotnet nuget push
         if: (github.ref == 'refs/heads/main')
-        run: dotnet nuget push "${{ inputs.project_name }}/bin/Release/${{ inputs.project_name }}.${{ steps.tag_version.outputs.new_semver }}.nupkg" --source "github"
+        run: dotnet nuget push "${{ inputs.project_name }}/bin/Release/${{ inputs.project_name }}.${{ steps.tag_version.outputs.new_semver }}.nupkg" --source "github" --api-key ${{ secrets.GITHUB_TOKEN }}
