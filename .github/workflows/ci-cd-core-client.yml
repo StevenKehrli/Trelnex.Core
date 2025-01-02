@@ -20,9 +20,10 @@ jobs:
   # 1. Restore, Build, Tag, Pack and Push
   # ---------------------------------------------------------------------
   build:
-    uses: ./.github/workflows/nuget.yml
+    uses: ./.github/workflows/nuget-new.yml
 
     with:
+      dotnet_version: '9.0.x'
       project_name: 'Trelnex.Core.Client'
       tag_prefix: 'trelnex-core-client-'
 
