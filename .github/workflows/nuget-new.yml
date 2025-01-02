@@ -62,4 +62,4 @@ jobs:
 
       - name: dotnet nuget push
         if: (github.ref == 'refs/heads/main')
-        run: dotnet nuget push "${{ inputs.project_name }}/bin/Release/${{ inputs.project_name }}.${{ steps.tag_version.outputs.new_semver }}.nupkg" --source "github"
+        run: dotnet nuget push "${{ inputs.project_name }}/bin/Release/${{ inputs.project_name }}.${{ steps.tag_version.outputs.new_semver }}.nupkg" --source "github" --api-key ${{ secrets.GITHUB_TOKEN }}
