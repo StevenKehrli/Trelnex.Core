@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 using Trelnex.Core.Client.Identity;
 using Trelnex.Core.Data;
 
-namespace Trelnex.Core.Api.Cosmos;
+namespace Trelnex.Core.Api.CommandProviders;
 
 /// <summary>
 /// Extension method to add the necessary command providers to the <see cref="IServiceCollection"/>.
@@ -46,12 +46,15 @@ public static class CosmosExtensions
         };
 
         // build our cosmos client
+        var tokenCredentialForCosmosClient =
+            GetTokenCredentialForCosmosClient(
+                bootstrapLogger,
+                cosmosOptions.EndpointUri);
+
         var cosmosClientTask =
             new CosmosClientBuilder(
                     cosmosOptions.EndpointUri,
-                GetTokenCredentialForCosmosClient(
-                    bootstrapLogger,
-                    cosmosOptions.EndpointUri))
+                    tokenCredentialForCosmosClient)
             .WithCustomSerializer(new SystemTextJsonSerializer(jsonSerializerOptions))
             .WithHttpClientFactory(() => new HttpClient(new SocketsHttpHandler(), disposeHandler: false))
             .BuildAndInitializeAsync(
@@ -61,11 +64,12 @@ public static class CosmosExtensions
 
         cosmosClientTask.Wait();
 
-        var keyResolver =
-            new KeyResolver(
-                GetTokenCredentialForKeyResolver(
-                    bootstrapLogger,
-                    cosmosOptions.TenantId));
+        var tokenCredentialForKeyResolver =
+            GetTokenCredentialForKeyResolver(
+                bootstrapLogger,
+                cosmosOptions.TenantId);
+
+        var keyResolver = new KeyResolver(tokenCredentialForCosmosClient);
 
         var cosmosClient = cosmosClientTask.Result!
             .WithEncryption(keyResolver, KeyEncryptionKeyResolverName.AzureKeyVault);
