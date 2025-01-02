@@ -8,16 +8,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- [Trelnex.Core.HttpStatusCode:2.0.0] - upgrade to net9.0.
-- [Trelnex.Core.Client:2.0.0] - upgrade to net9.0.
-- [Trelnex.Core.Data:3.0.0] - upgrade to net9.0.
-- [Trelnex.Core.Data.Emulator:3.0.0] - upgrade to net9.0.
-- [Trelnex.Core.Api:3.0.0]  - upgrade to net9.0.
 - [Trelnex.Core.Data:3.x.0] - add integration tests for `CosmosCommandProvider`.
 - [Trelnex.Core.Api:3.x.0] - add integration tests for `AddCosmosCommandProviders` `IServiceCollection` extension method.
 - [Trelnex.Core.Data:3.x.0] - add `SqlCommandProvider` that uses an Azure SQL database as backing store.
 - [Trelnex.Core.Api.Tests:3.x.0] - add integration tests for `AddSqlCommandProviders` `IServiceCollection` extension method.
 - [Trelnex.Core.Data:3.x.0] - add batch transactions.
+
+## [Trelnex.Core.Api:3.0.0] - 2025-01-02
+
+### Changed
+
+- Updated to dotnet 9.0.x
+- Changed `CosmosExtensions` `AddCosmosCommandProviders` `IServiceCollection` extension method namespace from `Trelnex.Core.Api.Cosmos` to `Trelnex.Core.Api.CommandProviders`.
+
+## [Trelnex.Core.Data.Emulator:3.0.0] - 2025-01-02
+
+### Changed
+
+- Updated to dotnet 9.0.x
+
+## [Trelnex.Core.Data:3.0.0] - 2025-01-02
+
+### Changed
+
+- Updated to dotnet 9.0.x
+
+## [Trelnex.Core.Client:2.0.0] - 2025-01-02
+
+### Changed
+
+- Updated to dotnet 9.0.x
+
+## [Trelnex.Core.HttpStatusCode:2.0.0] - 2025-01-02
+
+### Changed
+
+- Updated to dotnet 9.0.x
 
 ## [Trelnex.Core.Api:2.0.0] - 2024-10-22
 
