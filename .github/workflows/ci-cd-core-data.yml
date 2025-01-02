@@ -24,6 +24,7 @@ jobs:
     uses: ./.github/workflows/test.yml
 
     with:
+      dotnet_version: '9.0.x'
       project_name: 'Trelnex.Core.Data.Tests'
 
   # ---------------------------------------------------------------------
