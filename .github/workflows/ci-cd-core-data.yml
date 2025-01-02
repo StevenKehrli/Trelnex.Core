@@ -31,7 +31,7 @@ jobs:
   # 2. Restore, Build, Tag, Pack and Push
   # ---------------------------------------------------------------------
   build:
-    uses: ./.github/workflows/nuget-new.yml
+    uses: ./.github/workflows/nuget.yml
 
     needs:
       - test
