@@ -14,6 +14,10 @@
         <RootNamespace>Trelnex.Core.Api</RootNamespace>
     </PropertyGroup>
 
+    <PropertyGroup>
+        <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
+    </PropertyGroup>
+
     <ItemGroup>
         <None Include="LICENSE" Pack="true" PackagePath="" />
         <None Include="README.md" Pack="true" PackagePath="" />
