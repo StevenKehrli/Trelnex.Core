@@ -30,12 +30,13 @@ jobs:
   # 2. Restore, Build, Tag, Pack and Push
   # ---------------------------------------------------------------------
   build:
-    uses: ./.github/workflows/nuget.yml
+    uses: ./.github/workflows/nuget-new.yml
 
     needs:
       - test
 
     with:
+      dotnet_version: '9.0.x'
       project_name: 'Trelnex.Core.Data'
       tag_prefix: 'trelnex-core-data-'
 
