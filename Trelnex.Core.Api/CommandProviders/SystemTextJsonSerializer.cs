@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 using Azure.Core.Serialization;
 using Microsoft.Azure.Cosmos;
 
-namespace Trelnex.Core.Api.Cosmos;
+namespace Trelnex.Core.Api.CommandProviders;
 
 /// <summary>
 /// A custom serializer using System.Text.Json to be used by the CosmosClient.
