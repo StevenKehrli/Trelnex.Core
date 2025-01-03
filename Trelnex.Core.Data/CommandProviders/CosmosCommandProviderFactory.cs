@@ -41,7 +41,7 @@ public class CosmosCommandProviderFactory
         };
 
         // build the list of ( database, container ) tuples 
-        var containers = cosmosClientOptions.Containers
+        var containers = cosmosClientOptions.ContainerIds
             .Select(container => (cosmosClientOptions.DatabaseId, container))
             .ToList()
             .AsReadOnly();
@@ -102,7 +102,7 @@ public record CosmosClientOptions(
     TokenCredential TokenCredential,
     string AccountEndpoint,
     string DatabaseId,
-    string[] Containers);
+    string[] ContainerIds);
 
 public record KeyResolverOptions(
     TokenCredential TokenCredential);
