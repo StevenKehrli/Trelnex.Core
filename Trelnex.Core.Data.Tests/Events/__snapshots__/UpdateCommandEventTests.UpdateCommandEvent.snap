@@ -2,7 +2,7 @@
   {
     "SaveAction": "CREATED",
     "RelatedId": "404d6b21-f7ba-48c4-813c-7d3b5bf4f549",
-    "RelatedTypeName": "item-test",
+    "RelatedTypeName": "test-item",
     "Changes": [
       {
         "PropertyName": "publicId",
@@ -38,7 +38,7 @@
   {
     "SaveAction": "UPDATED",
     "RelatedId": "404d6b21-f7ba-48c4-813c-7d3b5bf4f549",
-    "RelatedTypeName": "item-test",
+    "RelatedTypeName": "test-item",
     "Changes": [
       {
         "PropertyName": "publicId",

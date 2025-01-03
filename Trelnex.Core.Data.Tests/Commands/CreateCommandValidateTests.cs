@@ -5,7 +5,7 @@ namespace Trelnex.Core.Data.Tests.Commands;
 
 public class CreateCommandValidateTests
 {
-    private readonly string _typeName = "item-test";
+    private readonly string _typeName = "test-item";
 
     [Test]
     public void CreateCommandValidate_SaveAsync_PrivateMessage()

@@ -2,7 +2,7 @@
   "Item": {
     "Id": "a230a956-725e-4a5a-a292-fda8eba81c3f",
     "PartitionKey": "6ee7ef59-b5d8-4c1c-b44d-d7ba97866ac1",
-    "TypeName": "item-test",
+    "TypeName": "test-item",
     "CreatedDate": "2024-10-18T23:53:26.092286Z",
     "UpdatedDate": "2024-10-18T23:53:26.092286Z",
     "DeletedDate": null,
