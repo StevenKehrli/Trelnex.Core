@@ -1,7 +1,7 @@
 ﻿{
   "Item": {
     "Id": "f8829dac-56f6-4448-829a-fac886aefb1b",
-    "PartitionKey": "a3e68ca8-2555-4f03-b58f-c0e80bcd38f1",
+    "PartitionKey": "fbc8502a-38ee-4edb-8a2d-485888af5bd3",
     "TypeName": "test-item",
     "CreatedDate": "2025-01-03T03:11:00.745459Z",
     "UpdatedDate": "2025-01-03T03:11:00.745459Z",
