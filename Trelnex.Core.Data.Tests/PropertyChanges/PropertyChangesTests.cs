@@ -4,7 +4,7 @@ namespace Trelnex.Core.Data.Tests.PropertyChanges;
 
 public class PropertyChangesTests
 {
-    private readonly string _typeName = "item-test";
+    private readonly string _typeName = "test-item";
 
     [Test]
     public void PropertyChanges_IdAndMessage()

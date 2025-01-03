@@ -4,7 +4,7 @@ namespace Trelnex.Core.Data.Tests.Events;
 
 public class CreateCommandEventTests
 {
-    private readonly string _typeName = "item-test";
+    private readonly string _typeName = "test-item";
 
     [Test]
     public async Task CreateCommandEvent()

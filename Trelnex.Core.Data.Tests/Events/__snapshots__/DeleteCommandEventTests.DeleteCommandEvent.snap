@@ -2,7 +2,7 @@
   {
     "SaveAction": "CREATED",
     "RelatedId": "bc4971e4-6dae-45ba-b3ee-43c036e0d957",
-    "RelatedTypeName": "item-test",
+    "RelatedTypeName": "test-item",
     "Changes": [
       {
         "PropertyName": "publicId",
@@ -38,7 +38,7 @@
   {
     "SaveAction": "DELETED",
     "RelatedId": "bc4971e4-6dae-45ba-b3ee-43c036e0d957",
-    "RelatedTypeName": "item-test",
+    "RelatedTypeName": "test-item",
     "Changes": null,
     "Context": {
       "ObjectId": "587e11f5-ffde-4bb7-8c2c-a6778e14f21c",

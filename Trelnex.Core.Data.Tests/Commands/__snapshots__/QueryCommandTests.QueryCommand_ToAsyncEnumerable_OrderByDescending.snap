@@ -3,7 +3,7 @@
     "Item": {
       "Id": "88b6ec88-1985-4805-be97-0af168b7de7e",
       "PartitionKey": "0924a974-675f-4c21-b237-7a7e6781046c",
-      "TypeName": "item-test",
+      "TypeName": "test-item",
       "CreatedDate": "2024-10-20T03:48:33.845561Z",
       "UpdatedDate": "2024-10-20T03:48:33.845561Z",
       "DeletedDate": null,
@@ -17,7 +17,7 @@
     "Item": {
       "Id": "920073a0-9dc9-44b0-93c0-46a659449768",
       "PartitionKey": "f32dcad3-0f60-4f09-acaf-64958f2f559b",
-      "TypeName": "item-test",
+      "TypeName": "test-item",
       "CreatedDate": "2024-10-20T03:48:33.845476Z",
       "UpdatedDate": "2024-10-20T03:48:33.845476Z",
       "DeletedDate": null,

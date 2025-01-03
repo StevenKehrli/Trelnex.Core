@@ -2,7 +2,7 @@
   {
     "SaveAction": "CREATED",
     "RelatedId": "569d9c11-f66f-46b9-98be-ff0cff833475",
-    "RelatedTypeName": "item-test",
+    "RelatedTypeName": "test-item",
     "Changes": [
       {
         "PropertyName": "publicId",

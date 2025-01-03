@@ -344,7 +344,7 @@ The `ICommandProvider` will save the item to the backing data store.
 {
     "Id": "0346bbe4-0154-449f-860d-f3c1819aa174",
     "PartitionKey": "c8a6b519-3323-4bcb-9945-ab30d8ff96ff",
-    "TypeName": "item-test",
+    "TypeName": "test-item",
     "CreatedDate": "2024-10-12T00:43:10.5437965Z",
     "UpdatedDate": "2024-10-12T00:43:10.5437965Z",
     "DeletedDate": null,
@@ -365,7 +365,7 @@ Notice the `Changes` element does not include a property change for `privateMess
 {
     "SaveAction": "CREATED",
     "RelatedId": "0346bbe4-0154-449f-860d-f3c1819aa174",
-    "RelatedTypeName": "item-test",
+    "RelatedTypeName": "test-item",
     "Changes": [
       {
         "PropertyName": "publicMessage",
