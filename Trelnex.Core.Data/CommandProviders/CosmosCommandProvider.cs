@@ -6,34 +6,6 @@ using Microsoft.Azure.Cosmos.Linq;
 
 namespace Trelnex.Core.Data;
 
-public static class CosmosCommandProvider
-{
-    /// <summary>
-    /// Create an instance of the <see cref="CosmosCommandProvider"/>.
-    /// </summary>
-    /// <param name="container">The Cosmos container as the backing data store.</param>
-    /// <param name="typeName">The type name of the item - used for <see cref="BaseItem.TypeName"/>.</param>
-    /// <param name="validator">The fluent validator for the item.</param>
-    /// <param name="commandOperations">The value indicating if update and delete commands are allowed. By default, update is allowed; delete is not allowed.</param>
-    /// <typeparam name="TInterface">The specified interface type.</typeparam>
-    /// <typeparam name="TItem">The specified item type that implements the specified interface type.</typeparam>
-    /// <returns>The <see cref="CosmosCommandProvider"/>.</returns>
-    public static ICommandProvider<TInterface> Create<TInterface, TItem>(
-        Container container,
-        string typeName,
-        AbstractValidator<TItem>? validator = null,
-        CommandOperations? commandOperations = null)
-        where TInterface : class, IBaseItem
-        where TItem : BaseItem, TInterface, new()
-    {
-        return new CosmosCommandProvider<TInterface, TItem>(
-            container,
-            typeName,
-            validator,
-            commandOperations);
-    }
-}
-
 /// <summary>
 /// An implementation of <see cref="ICommandProvider{TInterface}"/> that uses a CosmosDB container as a backing store.
 /// </summary>
