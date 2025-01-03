@@ -8,7 +8,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- [Trelnex.Core.Api:3.x.0] - add integration tests for `AddCosmosCommandProviders` `IServiceCollection` extension method.
 - [Trelnex.Core.Data:3.x.0] - add `SqlCommandProvider` that uses an Azure SQL database as backing store.
 - [Trelnex.Core.Api.Tests:3.x.0] - add integration tests for `AddSqlCommandProviders` `IServiceCollection` extension method.
 - [Trelnex.Core.Data:3.x.0] - add batch transactions.
@@ -19,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Updated to dotnet 9.0.x
 - Changed `CosmosExtensions` `AddCosmosCommandProviders` `IServiceCollection` extension method namespace from `Trelnex.Core.Api.Cosmos` to `Trelnex.Core.Api.CommandProviders`.
+- Changed `CosmosExtensions` `AddCosmosCommandProviders` `IServiceCollection` extension method to use `CosmosCommandProviderFactory`.
 
 ## [Trelnex.Core.Data.Emulator:3.0.0] - 2025-01-02
 
