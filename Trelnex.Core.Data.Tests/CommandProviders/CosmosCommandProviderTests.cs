@@ -44,7 +44,7 @@ public class CosmosCommandProviderTests
             TokenCredential: tokenCredential,
             AccountEndpoint: cosmosConfiguration.EndpointUri,
             DatabaseId: cosmosConfiguration.Database,
-            Containers: [ cosmosConfiguration.Container ]
+            ContainerIds: [ cosmosConfiguration.Container ]
         );
 
         var keyResolverOptions = new KeyResolverOptions(
