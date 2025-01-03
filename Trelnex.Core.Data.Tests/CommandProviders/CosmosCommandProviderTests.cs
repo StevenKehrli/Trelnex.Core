@@ -18,7 +18,7 @@ public class CosmosCommandProviderTests
     private ICommandProvider<ITestItem> _commandProvider = null!;
 
     [OneTimeSetUp]
-    public void TestFixtureSetup()
+    public async Task TestFixtureSetup()
     {
         // This method is called once prior to executing any of the tests in the fixture.
 
@@ -30,49 +30,36 @@ public class CosmosCommandProviderTests
 
         var cosmosConfiguration = configuration.GetSection("CosmosDB").Get<CosmosConfiguration>()!;
 
+        // create the command provider
+        var tokenCredential = new DefaultAzureCredential();
+
         var cosmosClient = new CosmosClient(
             accountEndpoint: cosmosConfiguration.EndpointUri,
-            tokenCredential: new DefaultAzureCredential());
+            tokenCredential: tokenCredential);
+        
+        _container = cosmosClient.GetContainer(
+            databaseId: cosmosConfiguration.Database,
+            containerId: cosmosConfiguration.Container);
 
-        // get the container
-        _container = cosmosClient.GetContainer(cosmosConfiguration.Database, cosmosConfiguration.Container);
+        var cosmosClientOptions = new CosmosClientOptions(
+            TokenCredential: tokenCredential,
+            AccountEndpoint: cosmosConfiguration.EndpointUri,
+            DatabaseId: cosmosConfiguration.Database,
+            Containers: [ cosmosConfiguration.Container ]
+        );
 
-        // create the command provider
-        _commandProvider = CosmosCommandProvider.Create<ITestItem, TestItem>(
-            _container,
+        var keyResolverOptions = new KeyResolverOptions(
+            TokenCredential: tokenCredential);
+
+        var factory = await CosmosCommandProviderFactory.Create(
+            cosmosClientOptions,
+            keyResolverOptions);
+
+        _commandProvider = factory.Create<ITestItem, TestItem>(
+            cosmosConfiguration.Container,
             _typeName,
             TestItem.Validator,
             CommandOperations.All);
-    }
-
-    private async Task DeleteItemsAsync<T>(
-        string typeName)
-    {
-        // delete items from the container
-        var feedIterator = _container
-            .GetItemLinqQueryable<TestItem>()
-            .Where(item => item.TypeName == typeName)
-            .ToFeedIterator();
-
-        while (feedIterator.HasMoreResults)
-        {
-            var response = await feedIterator.ReadNextAsync();
-
-            foreach (var item in response)
-            {
-                await _container.DeleteItemAsync<TestItem>(
-                    id: item.Id,
-                    partitionKey: new PartitionKey(item.PartitionKey));
-            }
-        }
-    }
-
-    [TearDown]
-    public async Task TestCleanup()
-    {
-        // delete items from the container
-        await DeleteItemsAsync<ItemEvent<TestItem>>(ReservedTypeNames.Event);
-        await DeleteItemsAsync<TestItem>(_typeName);
     }
 
     [Test]

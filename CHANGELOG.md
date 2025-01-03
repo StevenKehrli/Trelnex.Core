@@ -28,6 +28,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Trelnex.Core.Data:3.0.0] - 2025-01-02
 
+### Added
+
+- Added `CosmosCommandProviderFactory` to create an instance of `CosmosCommandProvider`. This now handles all CosmosClient and KeyResolver logic (with the exception of the TokenCredential).
+
 ### Changed
 
 - Updated to dotnet 9.0.x
