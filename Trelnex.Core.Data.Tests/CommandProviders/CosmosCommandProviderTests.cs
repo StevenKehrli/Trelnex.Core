@@ -1,6 +1,5 @@
 using Azure.Identity;
 using Microsoft.Azure.Cosmos;
-using Microsoft.Azure.Cosmos.Linq;
 using Microsoft.Extensions.Configuration;
 using Snapshooter.NUnit;
 
