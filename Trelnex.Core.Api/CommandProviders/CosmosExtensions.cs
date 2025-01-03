@@ -1,12 +1,6 @@
 using System.Configuration;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Azure.Core;
-using Azure.Security.KeyVault.Keys.Cryptography;
 using FluentValidation;
-using Microsoft.Azure.Cosmos;
-using Microsoft.Azure.Cosmos.Encryption;
-using Microsoft.Azure.Cosmos.Fluent;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -40,50 +34,33 @@ public static class CosmosExtensions
         // parse the cosmos options
         var cosmosOptions = CosmosOptions.Parse(cosmosConfiguration);
 
-        var jsonSerializerOptions = new JsonSerializerOptions
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        };
-
-        // build our cosmos client
+        // create our factory
         var tokenCredentialForCosmosClient =
             GetTokenCredentialForCosmosClient(
                 bootstrapLogger,
                 cosmosOptions.EndpointUri);
-
-        var cosmosClientTask =
-            new CosmosClientBuilder(
-                    cosmosOptions.EndpointUri,
-                    tokenCredentialForCosmosClient)
-            .WithCustomSerializer(new SystemTextJsonSerializer(jsonSerializerOptions))
-            .WithHttpClientFactory(() => new HttpClient(new SocketsHttpHandler(), disposeHandler: false))
-            .BuildAndInitializeAsync(
-                cosmosOptions.GetContainers(),
-                CancellationToken.None
-            );
-
-        cosmosClientTask.Wait();
 
         var tokenCredentialForKeyResolver =
             GetTokenCredentialForKeyResolver(
                 bootstrapLogger,
                 cosmosOptions.TenantId);
 
-        var keyResolver = new KeyResolver(tokenCredentialForCosmosClient);
+        var factoryTask = CosmosCommandProviderFactory.Create(
+            new CosmosClientOptions(
+                AccountEndpoint: cosmosOptions.EndpointUri,
+                TokenCredential: tokenCredentialForCosmosClient,
+                DatabaseId: cosmosOptions.Database,
+                ContainerIds: cosmosOptions.GetContainerIds()),
+            new KeyResolverOptions(
+                TokenCredential: tokenCredentialForKeyResolver));
 
-        var cosmosClient = cosmosClientTask.Result!
-            .WithEncryption(keyResolver, KeyEncryptionKeyResolverName.AzureKeyVault);
-
-        // get the container, create the command provider, and inject
+        // create the command providers and inject
         var commandProviderOptions = new CommandProviderOptions(
             services: services,
             bootstrapLogger: bootstrapLogger,
-            getContainer: typeName =>
-                cosmosClient.GetContainer(
-                    cosmosOptions.Database,
-                    cosmosOptions.GetContainer(typeName)));
+            factory: factoryTask.Result!,
+            cosmosOptions: cosmosOptions);
 
-        // inject any needed command providers
         configureCommandProviders(commandProviderOptions);
 
         return services;
@@ -152,109 +129,64 @@ public static class CosmosExtensions
         return tokenCredential;
     }
 
-    /// <summary>
-    /// Represents the Cosmos options: the collection containers by item type.
-    /// </summary>
-    private class CosmosOptions(
-        string tenantId,
-        string endpointUri,
-        string database)
+    private class CommandProviderOptions(
+        IServiceCollection services,
+        ILogger bootstrapLogger,
+        CosmosCommandProviderFactory factory,
+        CosmosOptions cosmosOptions)
+        : ICommandProviderOptions
     {
-        /// <summary>
-        /// The collection of containers by item type.
-        /// </summary>
-        private readonly Dictionary<string, string> _containerByTypeName = [];
-
-        /// <summary>
-        /// Initialize an instance of <see cref="CosmosOptions"/>.
-        /// </summary>
-        /// <param name="cosmosConfiguration">The cosmos configuration.</param>
-        /// <returns>The <see cref="CosmosOptions"/>.</returns>
-        /// <exception cref="AggregateException">Represents one or more configuration errors.</exception>
-        public static CosmosOptions Parse(
-            CosmosConfiguration cosmosConfiguration)
+        public ICommandProviderOptions Add<TInterface, TItem>(
+            string typeName,
+            AbstractValidator<TItem>? itemValidator = null,
+            CommandOperations? commandOperations = null)
+            where TInterface : class, IBaseItem
+            where TItem : BaseItem, TInterface, new()
         {
-            // get the defaults
-            var containerOverrides = new CosmosOptions(
-                tenantId: cosmosConfiguration.TenantId,
-                endpointUri: cosmosConfiguration.EndpointUri,
-                database: cosmosConfiguration.Database);
+            // get the container for the specified item type
+            var container = cosmosOptions.GetContainerId(typeName);
 
-            // group the containers by item type
-            var groups = cosmosConfiguration
-                .Containers
-                .GroupBy(o => o.TypeName)
-                .ToArray();
-
-            // any exceptions
-            var exs = new List<ConfigurationErrorsException>();
-
-            // enumerate each group - should be one
-            Array.ForEach(groups, group =>
+            if (container is null)
             {
-                if (group.Count() <= 1) return;
-
-                exs.Add(new ConfigurationErrorsException($"A Container for TypeName '{group.Key} is specified more than once."));
-            });
-
-            // if there are any exceptions, then throw an aggregate exception of all exceptions
-            if (exs.Count > 0)
-            {
-                throw new AggregateException(exs);
+                throw new ArgumentException(
+                    $"The container for TypeName '{typeName}' is not found.",
+                    nameof(typeName));
             }
 
-            // enumerate each group and set the container (value) for each item type (key)
-            Array.ForEach(groups, group =>
-            {
-                containerOverrides._containerByTypeName[group.Key] = group.Single().Container;
-            });
+            // create the command provider and inject
+            var commandProvider = factory.Create<TInterface, TItem>(
+                container,
+                typeName,
+                itemValidator,
+                commandOperations);
 
-            return containerOverrides;
-        }
+            services.AddSingleton(commandProvider);
 
-        /// <summary>
-        /// Get the database.
-        /// </summary>
-        public string Database => database;
+            object[] args =
+            [
+                typeof(TInterface), // TInterface,
+                typeof(TItem), // TItem,
+                cosmosOptions.Database, // database,
+                container, // container
+            ];
 
-        /// <summary>
-        /// Get the endpoint.
-        /// </summary>
-        public string EndpointUri => endpointUri;
+            // log - the :l format parameter (l = literal) to avoid the quotes
+            bootstrapLogger.LogInformation(
+                message: "Added CommandProvider<{TInterface:l}, {TItem:l}> using Database '{database:l}' and Container '{container:l}'.",
+                args: args);
 
-        /// <summary>
-        /// Get the tenant id.
-        /// </summary>
-        public string TenantId => tenantId;
-
-        /// <summary>
-        /// Get the container for the specified item type.
-        /// </summary>
-        /// <param name="typeName">The specified item type.</param>
-        /// <returns>The container for the specified item type.</returns>
-        public string? GetContainer(
-            string typeName)
-        {
-            return _containerByTypeName.TryGetValue(typeName, out var container)
-                ? container
-                : null;
-        }
-
-        /// <summary>
-        /// Get the database - container pairs.
-        /// </summary>
-        /// <returns>The database - container pairs.</returns>
-        public IReadOnlyList<(string, string)> GetContainers()
-        {
-            // initialize with the default container
-            List<(string, string)> containers = [];
-
-            // add the overrides - the value is the container
-            containers.AddRange(_containerByTypeName.Select(kvp => (database, kvp.Value)));
-
-            return containers;
+            return this;
         }
     }
+
+    /// <summary>
+    /// Represents the container for the specified item type.
+    /// </summary>
+    /// <param name="TypeName">The specified item type name.</param>
+    /// <param name="Container">The container for the specified item type.</param>
+    private record ContainerConfiguration(
+        string TypeName,
+        string Container);
 
     /// <summary>
     /// Represents the configuration properties for Cosmos command providers.
@@ -288,53 +220,103 @@ public static class CosmosExtensions
     }
 
     /// <summary>
-    /// Represents the container for the specified item type.
+    /// Represents the Cosmos options: the collection containers by item type.
     /// </summary>
-    /// <param name="TypeName">The specified item type name.</param>
-    /// <param name="Container">The container for the specified item type.</param>
-    private record ContainerConfiguration(
-        string TypeName,
-        string Container);
-
-    private class CommandProviderOptions(
-        IServiceCollection services,
-        ILogger bootstrapLogger,
-        Func<string, Container> getContainer)
-        : ICommandProviderOptions
+    private class CosmosOptions(
+        string tenantId,
+        string endpointUri,
+        string database)
     {
-        public ICommandProviderOptions Add<TInterface, TItem>(
-            string typeName,
-            AbstractValidator<TItem>? itemValidator = null,
-            CommandOperations? commandOperations = null)
-            where TInterface : class, IBaseItem
-            where TItem : BaseItem, TInterface, new()
+        /// <summary>
+        /// The collection of containers by item type.
+        /// </summary>
+        private readonly Dictionary<string, string> _containerByTypeName = [];
+
+        /// <summary>
+        /// Initialize an instance of <see cref="CosmosOptions"/>.
+        /// </summary>
+        /// <param name="cosmosConfiguration">The cosmos configuration.</param>
+        /// <returns>The <see cref="CosmosOptions"/>.</returns>
+        /// <exception cref="AggregateException">Represents one or more configuration errors.</exception>
+        public static CosmosOptions Parse(
+            CosmosConfiguration cosmosConfiguration)
         {
-            // get the container for the specified item type
-            var container = getContainer(typeName);
+            // get the tenant, endpoint, and database
+            var cosmosOptions = new CosmosOptions(
+                tenantId: cosmosConfiguration.TenantId,
+                endpointUri: cosmosConfiguration.EndpointUri,
+                database: cosmosConfiguration.Database);
 
-            // create the command provider and inject it
-            var commandProvider = CosmosCommandProvider.Create<TInterface, TItem>(
-                container,
-                typeName,
-                itemValidator,
-                commandOperations);
+            // group the containers by item type
+            var groups = cosmosConfiguration
+                .Containers
+                .GroupBy(o => o.TypeName)
+                .ToArray();
 
-            object[] args =
-            [
-                typeof(TInterface), // TInterface,
-                typeof(TItem), // TItem,
-                container.Database.Id, // database,
-                container.Id, // container
-            ];
+            // any exceptions
+            var exs = new List<ConfigurationErrorsException>();
 
-            // log - the :l format parameter (l = literal) to avoid the quotes
-            bootstrapLogger.LogInformation(
-                message: "Added CommandProvider<{TInterface:l}, {TItem:l}> using Database '{database:l}' and Container '{container:l}'.",
-                args: args);
+            // enumerate each group - should be one
+            Array.ForEach(groups, group =>
+            {
+                if (group.Count() <= 1) return;
 
-            services.AddSingleton(commandProvider);
+                exs.Add(new ConfigurationErrorsException($"A Container for TypeName '{group.Key} is specified more than once."));
+            });
 
-            return this;
+            // if there are any exceptions, then throw an aggregate exception of all exceptions
+            if (exs.Count > 0)
+            {
+                throw new AggregateException(exs);
+            }
+
+            // enumerate each group and set the container (value) for each item type (key)
+            Array.ForEach(groups, group =>
+            {
+                cosmosOptions._containerByTypeName[group.Key] = group.Single().Container;
+            });
+
+            return cosmosOptions;
+        }
+
+        /// <summary>
+        /// Get the database.
+        /// </summary>
+        public string Database => database;
+
+        /// <summary>
+        /// Get the endpoint.
+        /// </summary>
+        public string EndpointUri => endpointUri;
+
+        /// <summary>
+        /// Get the tenant id.
+        /// </summary>
+        public string TenantId => tenantId;
+
+        /// <summary>
+        /// Get the container for the specified item type.
+        /// </summary>
+        /// <param name="typeName">The specified item type.</param>
+        /// <returns>The container for the specified item type.</returns>
+        public string? GetContainerId(
+            string typeName)
+        {
+            return _containerByTypeName.TryGetValue(typeName, out var container)
+                ? container
+                : null;
+        }
+
+        /// <summary>
+        /// Get the containers.
+        /// </summary>
+        /// <returns>The array of containers.</returns>
+        public string[] GetContainerIds()
+        {
+            return _containerByTypeName
+                .Values
+                .OrderBy(c => c)
+                .ToArray();
         }
     }
 }

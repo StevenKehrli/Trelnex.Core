@@ -17,10 +17,24 @@ on:
 jobs:
 
   # ---------------------------------------------------------------------
-  # 1. Restore, Build, Tag, Pack and Push
+  # 1. Test
+  # ---------------------------------------------------------------------
+  test:
+    name: Trelnex.Core.Api.Tests
+    uses: ./.github/workflows/test.yml
+
+    with:
+      dotnet_version: '9.0.x'
+      project_name: 'Trelnex.Core.Api.Tests'
+
+  # ---------------------------------------------------------------------
+  # 2. Restore, Build, Tag, Pack and Push
   # ---------------------------------------------------------------------
   build:
     uses: ./.github/workflows/nuget.yml
+
+    needs:
+      - test
 
     with:
       dotnet_version: '9.0.x'

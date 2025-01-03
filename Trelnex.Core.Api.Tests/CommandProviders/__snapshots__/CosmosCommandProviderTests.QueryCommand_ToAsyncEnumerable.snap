@@ -1,0 +1,28 @@
+﻿[
+  {
+    "Item": {
+      "Id": "4ed21fda-4fae-4709-90ca-5c96d85dac78",
+      "PartitionKey": "a9b616d7-05e8-4b89-a206-dabf4f19d46a",
+      "TypeName": "test-item",
+      "CreatedDate": "2025-01-03T07:02:29.910957Z",
+      "UpdatedDate": "2025-01-03T07:02:29.910957Z",
+      "DeletedDate": null,
+      "IsDeleted": null,
+      "ETag": "\"8601d6ff-0000-0300-0000-67778b850000\"",
+      "Message": "Message #1"
+    }
+  },
+  {
+    "Item": {
+      "Id": "2467d367-1a5d-4ac0-b760-01850b9ff4f4",
+      "PartitionKey": "13e5b99b-893c-4202-a27e-b4aef69f6174",
+      "TypeName": "test-item",
+      "CreatedDate": "2025-01-03T07:02:29.965735Z",
+      "UpdatedDate": "2025-01-03T07:02:29.965735Z",
+      "DeletedDate": null,
+      "IsDeleted": null,
+      "ETag": "\"8601d9ff-0000-0300-0000-67778b860000\"",
+      "Message": "Message #2"
+    }
+  }
+]

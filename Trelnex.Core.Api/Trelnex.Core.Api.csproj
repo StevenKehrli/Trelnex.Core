@@ -28,7 +28,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Azure.Security.KeyVault.Keys" Version="4.7.0" />
         <PackageReference Include="Microsoft.Identity.Web" Version="3.5.0" />
         <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
         <PackageReference Include="prometheus-net.AspNetCore.HealthChecks" Version="8.2.1" />
