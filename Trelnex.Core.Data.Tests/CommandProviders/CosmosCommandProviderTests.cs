@@ -1,11 +1,8 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Azure.Identity;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Linq;
 using Microsoft.Extensions.Configuration;
 using Snapshooter.NUnit;
-using Trelnex.Core.Data.CommandProviders;
 
 namespace Trelnex.Core.Data.Tests.CommandProviders;
 
@@ -33,21 +30,9 @@ public class CosmosCommandProviderTests
 
         var cosmosConfiguration = configuration.GetSection("CosmosDB").Get<CosmosConfiguration>()!;
 
-        var jsonSerializerOptions = new JsonSerializerOptions
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        };
-
-        // build our cosmos client
-        var cosmosClientOptions = new CosmosClientOptions
-        {
-            Serializer = new SystemTextJsonSerializer(jsonSerializerOptions),
-        };
-
         var cosmosClient = new CosmosClient(
             accountEndpoint: cosmosConfiguration.EndpointUri,
-            tokenCredential: new DefaultAzureCredential(),
-            clientOptions: cosmosClientOptions);
+            tokenCredential: new DefaultAzureCredential());
 
         // get the container
         _container = cosmosClient.GetContainer(cosmosConfiguration.Database, cosmosConfiguration.Container);
