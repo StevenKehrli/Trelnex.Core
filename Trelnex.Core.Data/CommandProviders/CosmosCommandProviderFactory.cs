@@ -40,7 +40,7 @@ public class CosmosCommandProviderFactory
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
 
-        // build the list of ( database, container ) tuples 
+        // build the list of ( database, container ) tuples
         var containers = cosmosClientOptions.ContainerIds
             .Select(container => (cosmosClientOptions.DatabaseId, container))
             .ToList()

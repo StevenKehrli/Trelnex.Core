@@ -2,7 +2,7 @@
   {
     "Item": {
       "Id": "3fca6d8a-75c1-491a-9178-90343551364a",
-      "PartitionKey": "a3e68ca8-2555-4f03-b58f-c0e80bcd38f1",
+      "PartitionKey": "81dc4acd-dcbe-4d5f-a36f-21a35f158b2c",
       "TypeName": "test-item",
       "CreatedDate": "2025-01-03T03:22:37.745371Z",
       "UpdatedDate": "2025-01-03T03:22:37.745371Z",
@@ -15,7 +15,7 @@
   {
     "Item": {
       "Id": "648de92a-b7e8-41c5-a5d2-bdf0cc65d67c",
-      "PartitionKey": "a3e68ca8-2555-4f03-b58f-c0e80bcd38f1",
+      "PartitionKey": "e36f287e-188d-4a74-9db7-dab74282b5dd",
       "TypeName": "test-item",
       "CreatedDate": "2025-01-03T03:22:37.750188Z",
       "UpdatedDate": "2025-01-03T03:22:37.750188Z",
