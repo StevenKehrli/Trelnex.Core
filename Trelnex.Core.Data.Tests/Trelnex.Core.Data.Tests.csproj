@@ -31,6 +31,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="appsettings.json" CopyToOutputDirectory="Always" />
+        <None Include="appsettings.User.json" CopyToOutputDirectory="Always" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Trelnex.Core.Data.Emulator\Trelnex.Core.Data.Emulator.csproj" />
     </ItemGroup>
 
