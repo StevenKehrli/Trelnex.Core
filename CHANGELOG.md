@@ -8,7 +8,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- [Trelnex.Core.Data:3.x.0] - add integration tests for `CosmosCommandProvider`.
 - [Trelnex.Core.Api:3.x.0] - add integration tests for `AddCosmosCommandProviders` `IServiceCollection` extension method.
 - [Trelnex.Core.Data:3.x.0] - add `SqlCommandProvider` that uses an Azure SQL database as backing store.
 - [Trelnex.Core.Api.Tests:3.x.0] - add integration tests for `AddSqlCommandProviders` `IServiceCollection` extension method.
