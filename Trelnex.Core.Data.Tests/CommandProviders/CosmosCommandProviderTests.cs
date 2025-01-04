@@ -28,7 +28,7 @@ public class CosmosCommandProviderTests
 
         var cosmosConfiguration = configuration.GetSection("CosmosDB").Get<CosmosConfiguration>()!;
 
-        // create the command provider
+        // create a cosmos client for cleanup
         var tokenCredential = new DefaultAzureCredential();
 
         var cosmosClient = new CosmosClient(
@@ -39,6 +39,7 @@ public class CosmosCommandProviderTests
             databaseId: cosmosConfiguration.Database,
             containerId: cosmosConfiguration.Container);
 
+        // create the command provider
         var cosmosClientOptions = new CosmosClientOptions(
             TokenCredential: tokenCredential,
             AccountEndpoint: cosmosConfiguration.EndpointUri,
@@ -65,13 +66,13 @@ public class CosmosCommandProviderTests
     {
         // This method is called after each test case is run.
 
-        var itemEventsFeedIterator = _container
+        var feedIterator = _container
             .GetItemLinqQueryable<CosmosItem>()
             .ToFeedIterator();
 
-        while (itemEventsFeedIterator.HasMoreResults)
+        while (feedIterator.HasMoreResults)
         {
-            var feedResponse = await itemEventsFeedIterator.ReadNextAsync();
+            var feedResponse = await feedIterator.ReadNextAsync();
 
             foreach (var item in feedResponse)
             {
