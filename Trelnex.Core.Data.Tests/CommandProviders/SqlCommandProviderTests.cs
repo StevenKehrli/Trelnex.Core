@@ -7,14 +7,14 @@ using Snapshooter.NUnit;
 
 namespace Trelnex.Core.Data.Tests.CommandProviders;
 
-[Ignore("Requires a SQL instance.")]
+[Ignore("Requires a SQL server.")]
 public class SqlCommandProviderTests
 {
-    private readonly TokenCredential _tokenCredential = new DefaultAzureCredential();
     private readonly string _scope = "https://database.windows.net/.default";
-    private readonly string _typeName = "test-item";
 
+    private TokenCredential _tokenCredential = null!;
     private string _connectionString = null!;
+    private string _tableName = null!;
     private ICommandProvider<ITestItem> _commandProvider = null!;
 
     [OneTimeSetUp]
@@ -38,12 +38,13 @@ public class SqlCommandProviderTests
         };
 
         _connectionString = scsBuilder.ConnectionString;
+        _tableName = providerConfiguration.TableName;
 
         // create the command provider
-        var tokenCredential = new DefaultAzureCredential();
+        _tokenCredential = new DefaultAzureCredential();
 
         var sqlClientOptions = new SqlClientOptions(
-            TokenCredential: tokenCredential,
+            TokenCredential: _tokenCredential,
             Scope: _scope,
             DataSource: providerConfiguration.DataSource,
             InitialCatalog: providerConfiguration.InitialCatalog
@@ -54,7 +55,7 @@ public class SqlCommandProviderTests
 
         _commandProvider = factory.Create<ITestItem, TestItem>(
             providerConfiguration.TableName,
-            _typeName,
+            "test-item",
             TestItem.Validator,
             CommandOperations.All);
     }
@@ -70,7 +71,8 @@ public class SqlCommandProviderTests
 
         sqlConnection.Open();
 
-        var sqlCommand = new SqlCommand("DELETE FROM [dbo].[test-items-events]; DELETE FROM [dbo].[test-items];", sqlConnection);
+        var cmdText = $"DELETE FROM [{_tableName}-events]; DELETE FROM [{_tableName}];";
+        var sqlCommand = new SqlCommand(cmdText, sqlConnection);
 
         sqlCommand.ExecuteNonQuery();
     }

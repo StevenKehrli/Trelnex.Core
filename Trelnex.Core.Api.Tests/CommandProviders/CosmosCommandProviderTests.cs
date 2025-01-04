@@ -14,7 +14,6 @@ namespace Trelnex.Core.Api.Tests.CommandProviders;
 public class CosmosCommandProviderTests
 {
     private Container _container = null!;
-
     private ICommandProvider<ITestItem> _commandProvider = null!;
 
     [OneTimeSetUp]
