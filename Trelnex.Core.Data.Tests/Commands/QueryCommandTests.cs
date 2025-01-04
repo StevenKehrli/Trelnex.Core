@@ -194,7 +194,7 @@ public class QueryCommandTests
         var queryCommand = commandProvider.Query();
         queryCommand.OrderBy(i => i.PublicMessage);
 
-        // should return first item
+        // should return first item first
         var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
 
         Snapshot.Match(
@@ -251,7 +251,7 @@ public class QueryCommandTests
         var queryCommand = commandProvider.Query();
         queryCommand.OrderByDescending(i => i.PublicMessage);
 
-        // should return first item
+        // should return second item first
         var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
 
         Snapshot.Match(
@@ -351,7 +351,7 @@ public class QueryCommandTests
         var queryCommand = commandProvider.Query();
         queryCommand.OrderBy(i => i.PublicMessage).Skip(1);
 
-        // should return first item
+        // should return second item
         var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
 
         Snapshot.Match(

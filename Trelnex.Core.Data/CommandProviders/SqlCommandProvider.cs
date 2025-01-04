@@ -1,16 +1,20 @@
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
+using System.Transactions;
 using FluentValidation;
+using LinqToDB;
+using LinqToDB.Data;
 using Microsoft.Azure.Cosmos;
-using Microsoft.Azure.Cosmos.Linq;
+using Microsoft.Data.SqlClient;
 
 namespace Trelnex.Core.Data;
 
 /// <summary>
-/// An implementation of <see cref="ICommandProvider{TInterface}"/> that uses a CosmosDB container as a backing store.
+/// An implementation of <see cref="ICommandProvider{TInterface}"/> that uses a SQL table as a backing store.
 /// </summary>
-internal class CosmosCommandProvider<TInterface, TItem>(
-    Container container,
+internal partial class SqlCommandProvider<TInterface, TItem>(
+    DataOptions dataOptions,
     string typeName,
     AbstractValidator<TItem>? validator = null,
     CommandOperations? commandOperations = null)
@@ -35,35 +39,38 @@ internal class CosmosCommandProvider<TInterface, TItem>(
             throw new CommandException(HttpStatusCode.BadRequest, "The PartitionKey provided do not match.");
         }
 
-        // create the batch operation
-        var partitionKey = new PartitionKey(item.PartitionKey);
-        var batch = container.CreateTransactionalBatch(partitionKey);
+        // create the transaction
+        using var transactionScope = new TransactionScope();
 
-        // item
-        batch.CreateItem(item);
-
-        // event
-        batch.CreateItem(itemEvent);
+        // create the connection
+        using var dataConnection = new DataConnection(dataOptions);
 
         try
         {
-            // execute the batch
-            using var response = await batch.ExecuteAsync(cancellationToken);
+            // item
+            dataConnection.Insert(item);
 
-            // get the returned item and return it
-            var itemResponse = response.GetOperationResultAtIndex<TItem>(0);
+            // event
+            dataConnection.Insert(itemEvent);
 
-            // check the status code
-            if (itemResponse.IsSuccessStatusCode is false)
-            {
-                throw new CommandException(itemResponse.StatusCode);
-            }
+            // get the created item
+            var created = dataConnection
+                .GetTable<TItem>()
+                .Where(i => i.Id == item.Id && i.PartitionKey == item.PartitionKey)
+                .First();
 
-            return itemResponse.Resource;
+            // commit the transaction
+            transactionScope.Complete();
+
+            return await Task.FromResult(created);
         }
-        catch (CosmosException ce)
+        catch (SqlException se) when (PrimaryKeyViolationRegex().IsMatch(se.Message))
         {
-            throw new CommandException(ce.StatusCode, ce.Message);
+            throw new CommandException(HttpStatusCode.Conflict);
+        }
+        catch (SqlException se)
+        {
+            throw new CommandException(HttpStatusCode.InternalServerError, se.Message);
         }
     }
 
@@ -81,18 +88,24 @@ internal class CosmosCommandProvider<TInterface, TItem>(
     {
         try
         {
-            return await container.ReadItemAsync<TItem>(
-                id: id,
-                partitionKey: new PartitionKey(partitionKey),
-                cancellationToken: cancellationToken);
+            // create the connection
+            using var dataConnection = new DataConnection(dataOptions);
+
+            // get the item
+            var item = dataConnection
+                .GetTable<TItem>()
+                .Where(i => i.Id == id && i.PartitionKey == partitionKey)
+                .FirstOrDefault();
+
+            return await Task.FromResult(item);
         }
         catch (CosmosException ce) when (ce.StatusCode == HttpStatusCode.NotFound)
         {
             return default;
         }
-        catch (CosmosException ex)
+        catch (CosmosException ce)
         {
-            throw new CommandException(ex.StatusCode, ex.Message);
+            throw new CommandException(ce.StatusCode, ce.Message);
         }
     }
 
@@ -113,43 +126,38 @@ internal class CosmosCommandProvider<TInterface, TItem>(
             throw new CommandException(HttpStatusCode.BadRequest, "The PartitionKey provided do not match.");
         }
 
-        // create the batch operation
-        var partitionKey = new PartitionKey(item.PartitionKey);
-        var batch = container.CreateTransactionalBatch(partitionKey);
+        // create the transaction
+        using var transactionScope = new TransactionScope();
 
-        // item
-        var requestOptions = new TransactionalBatchItemRequestOptions
-        {
-            IfMatchEtag = item.ETag
-        };
-
-        batch.ReplaceItem(
-            id: item.Id,
-            item: item,
-            requestOptions: requestOptions);
-
-        // event
-        batch.CreateItem(itemEvent);
+        // create the connection
+        using var dataConnection = new DataConnection(dataOptions);
 
         try
         {
-            // execute the batch
-            using var response = await batch.ExecuteAsync(cancellationToken);
+            // item
+            dataConnection.Update(item);
 
-            // get the returned item and return it
-            var itemResponse = response.GetOperationResultAtIndex<TItem>(0);
+            // event
+            dataConnection.Insert(itemEvent);
 
-            // check the status code
-            if (itemResponse.IsSuccessStatusCode is false)
-            {
-                throw new CommandException(itemResponse.StatusCode);
-            }
+            // get the updated item
+            var updated = dataConnection
+                .GetTable<TItem>()
+                .Where(i => i.Id == item.Id && i.PartitionKey == item.PartitionKey)
+                .First();
 
-            return itemResponse.Resource;
+            // commit the transaction
+            transactionScope.Complete();
+
+            return await Task.FromResult(updated);
         }
-        catch (CosmosException ce)
+        catch (SqlException se) when (PreconditionFailedRegex().IsMatch(se.Message))
         {
-            throw new CommandException(ce.StatusCode, ce.Message);
+            throw new CommandException(HttpStatusCode.PreconditionFailed);
+        }
+        catch (SqlException se)
+        {
+            throw new CommandException(HttpStatusCode.InternalServerError, se.Message);
         }
     }
 
@@ -163,20 +171,21 @@ internal class CosmosCommandProvider<TInterface, TItem>(
     {
         // add typeName and isDeleted predicates
         // the lambda parameter i is an item of TInterface type
-        var queryable = container
-            .GetItemLinqQueryable<TItem>()
+        var queryable = Enumerable.Empty<TItem>().AsQueryable()
             .Where(i => i.TypeName == TypeName)
-            .Where(i => i.IsDeleted.IsDefined() == false || i.IsDeleted == false);
+            .Where(i => i.IsDeleted == null || i.IsDeleted == false);
 
-        return new CosmosQueryCommand(
+        return new SqlQueryCommand(
             expressionConverter: expressionConverter,
             queryable: queryable,
+            dataOptions: dataOptions,
             convertToReadResult: CreateReadResult);
     }
 
-    private class CosmosQueryCommand(
+    private class SqlQueryCommand(
         ExpressionConverter<TInterface, TItem> expressionConverter,
         IQueryable<TItem> queryable,
+        DataOptions dataOptions,
         Func<TItem, IReadResult<TInterface>> convertToReadResult)
         : QueryCommand<TInterface, TItem>(expressionConverter, queryable)
     {
@@ -188,28 +197,28 @@ internal class CosmosCommandProvider<TInterface, TItem>(
         protected override async IAsyncEnumerable<IReadResult<TInterface>> ExecuteAsync(
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            // get the feed iterator
-            var feedIterator = GetQueryable().ToFeedIterator();
+            // create the connection
+            using var dataConnection = new DataConnection(dataOptions);
 
-            while (feedIterator.HasMoreResults)
+            // create the query from the table and the queryable expression
+            var queryable = dataConnection
+                .GetTable<TItem>()
+                .Provider
+                .CreateQuery<TItem>(GetQueryable().Expression);
+
+            foreach (var item in queryable.AsEnumerable())
             {
-                FeedResponse<TItem>? feedResponse = null;
+                cancellationToken.ThrowIfCancellationRequested();
 
-                try
-                {
-                    // this is where cosmos will throw
-                    feedResponse = await feedIterator.ReadNextAsync(cancellationToken);
-                }
-                catch (CosmosException ex)
-                {
-                    throw new CommandException(ex.StatusCode);
-                }
-
-                foreach (var item in feedResponse)
-                {
-                    yield return convertToReadResult(item);
-                }
+                yield return await Task.FromResult(convertToReadResult(item));
             }
         }
     }
+
+    [GeneratedRegex("^Violation of PRIMARY KEY constraint ")]
+    private static partial Regex PrimaryKeyViolationRegex();
+
+
+    [GeneratedRegex("^Precondition Failed\\.$")]
+    private static partial Regex PreconditionFailedRegex();
 }

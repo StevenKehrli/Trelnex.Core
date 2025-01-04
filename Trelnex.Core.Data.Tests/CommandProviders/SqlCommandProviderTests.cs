@@ -1,18 +1,20 @@
+using Azure.Core;
 using Azure.Identity;
-using Microsoft.Azure.Cosmos;
-using Microsoft.Azure.Cosmos.Linq;
+using LinqToDB;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Snapshooter.NUnit;
 
 namespace Trelnex.Core.Data.Tests.CommandProviders;
 
-[Ignore("Requires a CosmosDB instance.")]
-public class CosmosCommandProviderTests
+[Ignore("Requires a SQL instance.")]
+public class SqlCommandProviderTests
 {
+    private readonly TokenCredential _tokenCredential = new DefaultAzureCredential();
+    private readonly string _scope = "https://database.windows.net/.default";
     private readonly string _typeName = "test-item";
 
-    private Container _container = null!;
-
+    private string _connectionString = null!;
     private ICommandProvider<ITestItem> _commandProvider = null!;
 
     [OneTimeSetUp]
@@ -26,61 +28,53 @@ public class CosmosCommandProviderTests
             .AddJsonFile("appsettings.User.json", optional: true, reloadOnChange: true)
             .Build();
 
-        var cosmosConfiguration = configuration.GetSection("CosmosDB").Get<CosmosConfiguration>()!;
+        var sqlConfiguration = configuration.GetSection("SQL").Get<SqlConfiguration>()!;
+
+        var scsBuilder = new SqlConnectionStringBuilder()
+        {
+            DataSource = sqlConfiguration.DataSource,
+            InitialCatalog = sqlConfiguration.InitialCatalog,
+            Encrypt = true,
+        };
+
+        _connectionString = scsBuilder.ConnectionString;
 
         // create the command provider
         var tokenCredential = new DefaultAzureCredential();
 
-        var cosmosClient = new CosmosClient(
-            accountEndpoint: cosmosConfiguration.EndpointUri,
-            tokenCredential: tokenCredential);
-
-        _container = cosmosClient.GetContainer(
-            databaseId: cosmosConfiguration.Database,
-            containerId: cosmosConfiguration.Container);
-
-        var cosmosClientOptions = new CosmosClientOptions(
+        var sqlClientOptions = new SqlClientOptions(
             TokenCredential: tokenCredential,
-            AccountEndpoint: cosmosConfiguration.EndpointUri,
-            DatabaseId: cosmosConfiguration.Database,
-            ContainerIds: [ cosmosConfiguration.Container ]
+            Scope: _scope,
+            DataSource: sqlConfiguration.DataSource,
+            InitialCatalog: sqlConfiguration.InitialCatalog
         );
 
-        var keyResolverOptions = new KeyResolverOptions(
-            TokenCredential: tokenCredential);
-
-        var factory = await CosmosCommandProviderFactory.Create(
-            cosmosClientOptions,
-            keyResolverOptions);
+        var factory = await SqlCommandProviderFactory.Create(
+            sqlClientOptions);
 
         _commandProvider = factory.Create<ITestItem, TestItem>(
-            cosmosConfiguration.Container,
+            sqlConfiguration.TableName,
             _typeName,
             TestItem.Validator,
             CommandOperations.All);
     }
 
     [TearDown]
-    public async Task Cleanup()
+    public void Cleanup()
     {
-        // This method is called after each test case is run.
+        // This method is called after each test has run.
+        using var sqlConnection = new SqlConnection(_connectionString);
 
-        var itemEventsFeedIterator = _container
-            .GetItemLinqQueryable<CosmosItem>()
-            .ToFeedIterator();
+        var tokenRequestContext = new TokenRequestContext([ _scope ]);
+        sqlConnection.AccessToken = _tokenCredential.GetToken(tokenRequestContext, default).Token;
 
-        while (itemEventsFeedIterator.HasMoreResults)
-        {
-            var feedResponse = await itemEventsFeedIterator.ReadNextAsync();
+        sqlConnection.Open();
 
-            foreach (var item in feedResponse)
-            {
-                await _container.DeleteItemAsync<CosmosItem>(
-                    id: item.id,
-                    partitionKey: new PartitionKey(item.partitionKey));
-            }
-        }
+        var sqlCommand = new SqlCommand("DELETE FROM [dbo].[test-items-events]; DELETE FROM [dbo].[test-items];", sqlConnection);
+
+        sqlCommand.ExecuteNonQuery();
     }
+
 
     [Test]
     public async Task CreateCommand_SaveAsync()
@@ -852,14 +846,10 @@ public class CosmosCommandProviderTests
     }
 
     /// <summary>
-    /// Represents the configuration properties for Cosmos command providers.
+    /// Represents the configuration properties for SQL command providers.
     /// </summary>
-    private record CosmosConfiguration(
-        string EndpointUri,
-        string Database,
-        string Container);
-
-    private record CosmosItem(
-        string id,
-        string partitionKey);
+    private record SqlConfiguration(
+        string DataSource,
+        string InitialCatalog,
+        string TableName);
 }
