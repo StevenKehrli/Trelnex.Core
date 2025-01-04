@@ -49,7 +49,7 @@ public static class CosmosExtensions
             new CosmosClientOptions(
                 AccountEndpoint: cosmosOptions.EndpointUri,
                 TokenCredential: tokenCredentialForCosmosClient,
-                DatabaseId: cosmosOptions.Database,
+                DatabaseId: cosmosOptions.DatabaseId,
                 ContainerIds: cosmosOptions.GetContainerIds()),
             new KeyResolverOptions(
                 TokenCredential: tokenCredentialForKeyResolver));
@@ -144,9 +144,9 @@ public static class CosmosExtensions
             where TItem : BaseItem, TInterface, new()
         {
             // get the container for the specified item type
-            var container = cosmosOptions.GetContainerId(typeName);
+            var containerId = cosmosOptions.GetContainerId(typeName);
 
-            if (container is null)
+            if (containerId is null)
             {
                 throw new ArgumentException(
                     $"The container for TypeName '{typeName}' is not found.",
@@ -155,10 +155,10 @@ public static class CosmosExtensions
 
             // create the command provider and inject
             var commandProvider = factory.Create<TInterface, TItem>(
-                container,
-                typeName,
-                itemValidator,
-                commandOperations);
+                containerId: containerId,
+                typeName: typeName,
+                validator: itemValidator,
+                commandOperations: commandOperations);
 
             services.AddSingleton(commandProvider);
 
@@ -166,13 +166,13 @@ public static class CosmosExtensions
             [
                 typeof(TInterface), // TInterface,
                 typeof(TItem), // TItem,
-                cosmosOptions.Database, // database,
-                container, // container
+                cosmosOptions.DatabaseId, // database,
+                containerId, // container
             ];
 
             // log - the :l format parameter (l = literal) to avoid the quotes
             bootstrapLogger.LogInformation(
-                message: "Added CommandProvider<{TInterface:l}, {TItem:l}> using Database '{database:l}' and Container '{container:l}'.",
+                message: "Added CommandProvider<{TInterface:l}, {TItem:l}> using DatabaseId '{databaseId:l}' and ContainerId '{containerId:l}'.",
                 args: args);
 
             return this;
@@ -183,10 +183,10 @@ public static class CosmosExtensions
     /// Represents the container for the specified item type.
     /// </summary>
     /// <param name="TypeName">The specified item type name.</param>
-    /// <param name="Container">The container for the specified item type.</param>
+    /// <param name="ContainerId">The container for the specified item type.</param>
     private record ContainerConfiguration(
         string TypeName,
-        string Container);
+        string ContainerId);
 
     /// <summary>
     /// Represents the configuration properties for Cosmos command providers.
@@ -211,7 +211,7 @@ public static class CosmosExtensions
         /// <summary>
         /// The database name to initialize.
         /// </summary>
-        public required string Database { get; init; }
+        public required string DatabaseId { get; init; }
 
         /// <summary>
         /// The collection of containers by item type
@@ -225,7 +225,7 @@ public static class CosmosExtensions
     private class CosmosOptions(
         string tenantId,
         string endpointUri,
-        string database)
+        string databaseId)
     {
         /// <summary>
         /// The collection of containers by item type.
@@ -245,7 +245,7 @@ public static class CosmosExtensions
             var cosmosOptions = new CosmosOptions(
                 tenantId: cosmosConfiguration.TenantId,
                 endpointUri: cosmosConfiguration.EndpointUri,
-                database: cosmosConfiguration.Database);
+                databaseId: cosmosConfiguration.DatabaseId);
 
             // group the containers by item type
             var groups = cosmosConfiguration
@@ -273,7 +273,7 @@ public static class CosmosExtensions
             // enumerate each group and set the container (value) for each item type (key)
             Array.ForEach(groups, group =>
             {
-                cosmosOptions._containerByTypeName[group.Key] = group.Single().Container;
+                cosmosOptions._containerByTypeName[group.Key] = group.Single().ContainerId;
             });
 
             return cosmosOptions;
@@ -282,7 +282,7 @@ public static class CosmosExtensions
         /// <summary>
         /// Get the database.
         /// </summary>
-        public string Database => database;
+        public string DatabaseId => databaseId;
 
         /// <summary>
         /// Get the endpoint.

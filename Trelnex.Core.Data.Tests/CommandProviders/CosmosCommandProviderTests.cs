@@ -36,15 +36,15 @@ public class CosmosCommandProviderTests
             tokenCredential: tokenCredential);
 
         _container = cosmosClient.GetContainer(
-            databaseId: cosmosConfiguration.Database,
-            containerId: cosmosConfiguration.Container);
+            databaseId: cosmosConfiguration.DatabaseId,
+            containerId: cosmosConfiguration.ContainerId);
 
         // create the command provider
         var cosmosClientOptions = new CosmosClientOptions(
             TokenCredential: tokenCredential,
             AccountEndpoint: cosmosConfiguration.EndpointUri,
-            DatabaseId: cosmosConfiguration.Database,
-            ContainerIds: [ cosmosConfiguration.Container ]
+            DatabaseId: cosmosConfiguration.DatabaseId,
+            ContainerIds: [ cosmosConfiguration.ContainerId ]
         );
 
         var keyResolverOptions = new KeyResolverOptions(
@@ -55,7 +55,7 @@ public class CosmosCommandProviderTests
             keyResolverOptions);
 
         _commandProvider = factory.Create<ITestItem, TestItem>(
-            cosmosConfiguration.Container,
+            cosmosConfiguration.ContainerId,
             _typeName,
             TestItem.Validator,
             CommandOperations.All);
@@ -857,8 +857,8 @@ public class CosmosCommandProviderTests
     /// </summary>
     private record CosmosConfiguration(
         string EndpointUri,
-        string Database,
-        string Container);
+        string DatabaseId,
+        string ContainerId);
 
     private record CosmosItem(
         string id,

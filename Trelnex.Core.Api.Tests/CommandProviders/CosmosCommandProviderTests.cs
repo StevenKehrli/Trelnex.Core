@@ -39,11 +39,11 @@ public class CosmosCommandProviderTests
             .Value;
 
         var database = configuration
-            .GetSection("CosmosDB:Database")
+            .GetSection("CosmosDB:DatabaseId")
             .Value;
 
         var container = configuration
-            .GetSection("CosmosDB:Containers:0:Container")
+            .GetSection("CosmosDB:Containers:0:ContainerId")
             .Value;
 
         var cosmosClient = new CosmosClient(
