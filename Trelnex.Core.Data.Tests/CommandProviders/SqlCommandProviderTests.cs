@@ -7,7 +7,7 @@ using Snapshooter.NUnit;
 
 namespace Trelnex.Core.Data.Tests.CommandProviders;
 
-// [Ignore("Requires a SQL instance.")]
+[Ignore("Requires a SQL instance.")]
 public class SqlCommandProviderTests
 {
     private readonly TokenCredential _tokenCredential = new DefaultAzureCredential();
