@@ -26,25 +26,25 @@ public class CosmosCommandProviderTests
             .AddJsonFile("appsettings.User.json", optional: true, reloadOnChange: true)
             .Build();
 
-        var cosmosConfiguration = configuration.GetSection("CosmosDB").Get<CosmosConfiguration>()!;
+        var providerConfiguration = configuration.GetSection("CosmosCommandProviders").Get<CosmosCommandProviderConfiguration>()!;
 
         // create a cosmos client for cleanup
         var tokenCredential = new DefaultAzureCredential();
 
         var cosmosClient = new CosmosClient(
-            accountEndpoint: cosmosConfiguration.EndpointUri,
+            accountEndpoint: providerConfiguration.EndpointUri,
             tokenCredential: tokenCredential);
 
         _container = cosmosClient.GetContainer(
-            databaseId: cosmosConfiguration.DatabaseId,
-            containerId: cosmosConfiguration.ContainerId);
+            databaseId: providerConfiguration.DatabaseId,
+            containerId: providerConfiguration.ContainerId);
 
         // create the command provider
         var cosmosClientOptions = new CosmosClientOptions(
             TokenCredential: tokenCredential,
-            AccountEndpoint: cosmosConfiguration.EndpointUri,
-            DatabaseId: cosmosConfiguration.DatabaseId,
-            ContainerIds: [ cosmosConfiguration.ContainerId ]
+            AccountEndpoint: providerConfiguration.EndpointUri,
+            DatabaseId: providerConfiguration.DatabaseId,
+            ContainerIds: [ providerConfiguration.ContainerId ]
         );
 
         var keyResolverOptions = new KeyResolverOptions(
@@ -55,7 +55,7 @@ public class CosmosCommandProviderTests
             keyResolverOptions);
 
         _commandProvider = factory.Create<ITestItem, TestItem>(
-            cosmosConfiguration.ContainerId,
+            providerConfiguration.ContainerId,
             _typeName,
             TestItem.Validator,
             CommandOperations.All);
@@ -855,7 +855,7 @@ public class CosmosCommandProviderTests
     /// <summary>
     /// Represents the configuration properties for Cosmos command providers.
     /// </summary>
-    private record CosmosConfiguration(
+    private record CosmosCommandProviderConfiguration(
         string EndpointUri,
         string DatabaseId,
         string ContainerId);

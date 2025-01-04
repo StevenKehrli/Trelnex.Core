@@ -28,12 +28,12 @@ public class SqlCommandProviderTests
             .AddJsonFile("appsettings.User.json", optional: true, reloadOnChange: true)
             .Build();
 
-        var sqlConfiguration = configuration.GetSection("SQL").Get<SqlConfiguration>()!;
+        var providerConfiguration = configuration.GetSection("SqlCommandProviders").Get<SqlCommandProviderConfiguration>()!;
 
         var scsBuilder = new SqlConnectionStringBuilder()
         {
-            DataSource = sqlConfiguration.DataSource,
-            InitialCatalog = sqlConfiguration.InitialCatalog,
+            DataSource = providerConfiguration.DataSource,
+            InitialCatalog = providerConfiguration.InitialCatalog,
             Encrypt = true,
         };
 
@@ -45,15 +45,15 @@ public class SqlCommandProviderTests
         var sqlClientOptions = new SqlClientOptions(
             TokenCredential: tokenCredential,
             Scope: _scope,
-            DataSource: sqlConfiguration.DataSource,
-            InitialCatalog: sqlConfiguration.InitialCatalog
+            DataSource: providerConfiguration.DataSource,
+            InitialCatalog: providerConfiguration.InitialCatalog
         );
 
         var factory = await SqlCommandProviderFactory.Create(
             sqlClientOptions);
 
         _commandProvider = factory.Create<ITestItem, TestItem>(
-            sqlConfiguration.TableName,
+            providerConfiguration.TableName,
             _typeName,
             TestItem.Validator,
             CommandOperations.All);
@@ -74,7 +74,6 @@ public class SqlCommandProviderTests
 
         sqlCommand.ExecuteNonQuery();
     }
-
 
     [Test]
     public async Task CreateCommand_SaveAsync()
@@ -848,7 +847,7 @@ public class SqlCommandProviderTests
     /// <summary>
     /// Represents the configuration properties for SQL command providers.
     /// </summary>
-    private record SqlConfiguration(
+    private record SqlCommandProviderConfiguration(
         string DataSource,
         string InitialCatalog,
         string TableName);

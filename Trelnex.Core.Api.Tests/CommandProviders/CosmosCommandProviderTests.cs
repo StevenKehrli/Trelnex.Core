@@ -35,15 +35,15 @@ public class CosmosCommandProviderTests
         var tokenCredential = new DefaultAzureCredential();
 
         var endpointUri = configuration
-            .GetSection("CosmosDB:EndpointUri")
+            .GetSection("CosmosCommandProviders:EndpointUri")
             .Value;
 
         var database = configuration
-            .GetSection("CosmosDB:DatabaseId")
+            .GetSection("CosmosCommandProviders:DatabaseId")
             .Value;
 
         var container = configuration
-            .GetSection("CosmosDB:Containers:0:ContainerId")
+            .GetSection("CosmosCommandProviders:Containers:0:ContainerId")
             .Value;
 
         var cosmosClient = new CosmosClient(
