@@ -37,9 +37,9 @@ public class CosmosCommandProviderTests
                 typeName: "test-item",
                 validator: TestItem.Validator,
                 commandOperations: CommandOperations.All));
-        
+
         var serviceProvider = services.BuildServiceProvider();
-        
+
         // get the command provider
         _commandProvider = serviceProvider.GetRequiredService<ICommandProvider<ITestItem>>();
     }
