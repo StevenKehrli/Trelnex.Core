@@ -1,3 +1,6 @@
+using Azure.Identity;
+using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Snapshooter.NUnit;
@@ -10,6 +13,8 @@ namespace Trelnex.Core.Api.Tests.CommandProviders;
 [Ignore("Requires a CosmosDB instance.")]
 public class CosmosCommandProviderTests
 {
+    private Container _container = null!;
+
     private ICommandProvider<ITestItem> _commandProvider = null!;
 
     [OneTimeSetUp]
@@ -25,6 +30,29 @@ public class CosmosCommandProviderTests
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .AddJsonFile("appsettings.User.json", optional: true, reloadOnChange: true)
             .Build();
+
+        // create a cosmos client for cleanup
+        var tokenCredential = new DefaultAzureCredential();
+
+        var endpointUri = configuration
+            .GetSection("CosmosDB:EndpointUri")
+            .Value;
+
+        var database = configuration
+            .GetSection("CosmosDB:Database")
+            .Value;
+
+        var container = configuration
+            .GetSection("CosmosDB:Containers:0:Container")
+            .Value;
+
+        var cosmosClient = new CosmosClient(
+            accountEndpoint: endpointUri,
+            tokenCredential: tokenCredential);
+
+        _container = cosmosClient.GetContainer(
+            databaseId: database,
+            containerId: container);
 
         var bootstrapLogger = services.AddSerilog(
             configuration,
@@ -44,11 +72,33 @@ public class CosmosCommandProviderTests
         _commandProvider = serviceProvider.GetRequiredService<ICommandProvider<ITestItem>>();
     }
 
+    [TearDown]
+    public async Task Cleanup()
+    {
+        // This method is called after each test case is run.
+
+        var feedIterator = _container
+            .GetItemLinqQueryable<CosmosItem>()
+            .ToFeedIterator();
+
+        while (feedIterator.HasMoreResults)
+        {
+            var feedResponse = await feedIterator.ReadNextAsync();
+
+            foreach (var item in feedResponse)
+            {
+                await _container.DeleteItemAsync<CosmosItem>(
+                    id: item.id,
+                    partitionKey: new PartitionKey(item.partitionKey));
+            }
+        }
+    }
+
     [Test]
     public async Task CreateCommand_SaveAsync()
     {
-        var id = "6adaafd5-0e1a-4545-8255-2a8486151af5";
-        var partitionKey = "c785e6d4-2868-417d-aeca-589f7c4ca07f";
+        var id = "2a4cb3ec-6624-4fc6-abc4-6a5db019f8f9";
+        var partitionKey = "b297ff5b-2ab5-4b8d-9dfd-57d2e1d8c3d2";
 
         var startDateTime = DateTime.UtcNow;
 
@@ -100,10 +150,55 @@ public class CosmosCommandProviderTests
     }
 
     [Test]
+    public async Task CreateCommand_Conflict()
+    {
+        var id = "8f522008-b431-4b63-93c2-c39eab3db43d";
+        var partitionKey = "52fe466c-52aa-4daf-8e16-a93b26680510";
+
+        var startDateTime = DateTime.UtcNow;
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand1.Item.Message = "Message #1";
+
+        // save it and read it back
+        var created1 = await createCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        Assert.That(created1, Is.Not.Null);
+
+        var createCommand2 = _commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand2.Item.Message = "Message #1";
+
+        // save it again
+        var ex = Assert.ThrowsAsync<CommandException>(
+            async () => await createCommand2.SaveAsync(
+                requestContext: requestContext,
+                cancellationToken: default))!;
+
+        var o = new
+        {
+            ex.HttpStatusCode,
+            ex.Message,
+            ex.Errors
+        };
+
+        Snapshot.Match(o);
+    }
+
+    [Test]
     public async Task DeleteCommand_SaveAsync()
     {
-        var id = "99456d7d-7587-4245-b35d-9b64cf35e899";
-        var partitionKey = "7d64c23f-e97b-4144-81fe-c670c7da7a6f";
+        var id = "f8829dac-56f6-4448-829a-fac886aefb1b";
+        var partitionKey = "fbc8502a-38ee-4edb-8a2d-485888af5bd3";
 
         var startDateTime = DateTime.UtcNow;
 
@@ -172,10 +267,68 @@ public class CosmosCommandProviderTests
     }
 
     [Test]
+    public async Task DeleteCommand_PreconditionFailed()
+    {
+        var id = "9ea4df8a-57ae-4897-9bd0-099eb01d669e";
+        var partitionKey = "a3791462-fe7c-487a-83fa-2c9b587582ca";
+
+        var startDateTime = DateTime.UtcNow;
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand = _commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand.Item.Message = "Message #1";
+
+        // save it
+        await createCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var deleteCommand1 = await _commandProvider.DeleteAsync(
+            id: id,
+            partitionKey: partitionKey);
+
+        Assert.That(deleteCommand1, Is.Not.Null);
+        Assert.That(deleteCommand1!.Item, Is.Not.Null);
+
+        var deleteCommand2 = await _commandProvider.DeleteAsync(
+            id: id,
+            partitionKey: partitionKey);
+
+        Assert.That(deleteCommand2, Is.Not.Null);
+        Assert.That(deleteCommand2!.Item, Is.Not.Null);
+
+        // save it and read it back
+        var deleted = await deleteCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        Assert.That(deleted, Is.Not.Null);
+
+        // save it again
+        var ex = Assert.ThrowsAsync<CommandException>(
+            async () => await deleteCommand2.SaveAsync(
+                requestContext: requestContext,
+                cancellationToken: default))!;
+
+        var o = new
+        {
+            ex.HttpStatusCode,
+            ex.Message,
+            ex.Errors
+        };
+
+        Snapshot.Match(o);
+    }
+
+    [Test]
     public async Task ReadCommand_ReadAsync()
     {
-        var id = "dd678bb5-2484-4c92-a233-aea9606bcb14";
-        var partitionKey = "3d3e01d3-46bf-4a58-972c-8ff7bfe1bc99";
+        var id = "a8cf4bc4-745a-471c-8fb1-5d4e124bbde2";
+        var partitionKey = "2b541bfd-4605-48f9-b1bc-5aba5f64cd24";
 
         var startDateTime = DateTime.UtcNow;
 
@@ -231,10 +384,23 @@ public class CosmosCommandProviderTests
     }
 
     [Test]
+    public async Task ReadCommand_NotFound()
+    {
+        var id = "040e17ef-b29f-4be0-885c-6e3609169743";
+        var partitionKey = "802398b0-892a-49c5-8310-48212b4817a0";
+
+        var read = await _commandProvider.ReadAsync(
+            id: id,
+            partitionKey: partitionKey);
+
+        Assert.That(read, Is.Null);
+    }
+
+    [Test]
     public async Task UpdateCommandSave_SaveAsync()
     {
-        var id = "035dab54-75a7-4afd-98d9-c2eaf3116cbd";
-        var partitionKey = "e15335d2-1091-404c-8492-92f3ca338e20";
+        var id = "7dded065-d204-4913-97ad-591e382baba5";
+        var partitionKey = "48953713-d269-42c1-b803-593f8c027aef";
 
         var startDateTime = DateTime.UtcNow;
 
@@ -299,14 +465,77 @@ public class CosmosCommandProviderTests
                 }));
     }
 
+
+    [Test]
+    public async Task UpdateCommandSave_PreconditionFailed()
+    {
+        var id = "e9086db7-9d2d-41de-948e-c04c967133d8";
+        var partitionKey = "2d723fdc-99f7-4c4b-a7ee-683b4e5bd2a7";
+
+        var startDateTime = DateTime.UtcNow;
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand = _commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand.Item.Message = "Message #1";
+
+        // save it
+        await createCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var updateCommand1 = await _commandProvider.UpdateAsync(
+            id: id,
+            partitionKey: partitionKey);
+
+        Assert.That(updateCommand1, Is.Not.Null);
+        Assert.That(updateCommand1!.Item, Is.Not.Null);
+
+        updateCommand1.Item.Message = "Message #2";
+
+        var updateCommand2 = await _commandProvider.UpdateAsync(
+            id: id,
+            partitionKey: partitionKey);
+
+        Assert.That(updateCommand2, Is.Not.Null);
+        Assert.That(updateCommand2!.Item, Is.Not.Null);
+
+        updateCommand2.Item.Message = "Message #2";
+
+        // save it and read it back
+        var updated = await updateCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        Assert.That(updated, Is.Not.Null);
+
+        // save it again
+        var ex = Assert.ThrowsAsync<CommandException>(
+            async () => await updateCommand2.SaveAsync(
+                requestContext: requestContext,
+                cancellationToken: default))!;
+
+        var o = new
+        {
+            ex.HttpStatusCode,
+            ex.Message,
+            ex.Errors
+        };
+
+        Snapshot.Match(o);
+    }
+
     [Test]
     public async Task QueryCommand_ToAsyncEnumerable()
     {
-        var id1 = "4ed21fda-4fae-4709-90ca-5c96d85dac78";
-        var partitionKey1 = "a9b616d7-05e8-4b89-a206-dabf4f19d46a";
+        var id1 = "3fca6d8a-75c1-491a-9178-90343551364a";
+        var partitionKey1 = "81dc4acd-dcbe-4d5f-a36f-21a35f158b2c";
 
-        var id2 = "2467d367-1a5d-4ac0-b760-01850b9ff4f4";
-        var partitionKey2 = "13e5b99b-893c-4202-a27e-b4aef69f6174";
+        var id2 = "648de92a-b7e8-41c5-a5d2-bdf0cc65d67c";
+        var partitionKey2 = "e36f287e-188d-4a74-9db7-dab74282b5dd";
 
         var requestContext = TestRequestContext.Create();
 
@@ -333,8 +562,7 @@ public class CosmosCommandProviderTests
             cancellationToken: default);
 
         // query
-        var queryCommand = _commandProvider.Query()
-            .Where(item => item.PartitionKey == partitionKey1 || item.PartitionKey == partitionKey2);
+        var queryCommand = _commandProvider.Query();
 
         // should return both items
         var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
@@ -346,4 +574,296 @@ public class CosmosCommandProviderTests
                 .IgnoreField("**.UpdatedDate")
                 .IgnoreField("**.ETag"));
     }
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_ItemIsDeleted()
+    {
+        var id = Guid.NewGuid().ToString();
+        var partitionKey = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand = _commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand.Item.Message = "Message #1";
+
+        // save it and read it back
+        var created = (await createCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default))!;
+
+        var deleteCommand = await _commandProvider.DeleteAsync(
+            id: id,
+            partitionKey: partitionKey);
+
+        // save it
+        await deleteCommand!.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = _commandProvider.Query();
+
+        // should return no items
+        var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Snapshot.Match(read);
+    }
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_OrderBy()
+    {
+        var id1 = Guid.NewGuid().ToString();
+        var partitionKey1 = Guid.NewGuid().ToString();
+
+        var id2 = Guid.NewGuid().ToString();
+        var partitionKey2 = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey1);
+
+        createCommand1.Item.Message = "Message #1";
+
+        // save it
+        await createCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey2);
+
+        createCommand2.Item.Message = "Message #2";
+
+        // save it
+        await createCommand2.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = _commandProvider.Query();
+        queryCommand.OrderBy(i => i.Message);
+
+        // should return first item
+        var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Snapshot.Match(
+            read,
+            matchOptions => matchOptions
+                .IgnoreField("**.Id")
+                .IgnoreField("**.PartitionKey")
+                .IgnoreField("**.CreatedDate")
+                .IgnoreField("**.UpdatedDate")
+                .IgnoreField("**.ETag"));
+    }
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_OrderByDescending()
+    {
+        var id1 = Guid.NewGuid().ToString();
+        var partitionKey1 = Guid.NewGuid().ToString();
+
+        var id2 = Guid.NewGuid().ToString();
+        var partitionKey2 = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey1);
+
+        createCommand1.Item.Message = "Message #1";
+
+        // save it
+        await createCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey2);
+
+        createCommand2.Item.Message = "Message #2";
+
+        // save it
+        await createCommand2.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = _commandProvider.Query();
+        queryCommand.OrderByDescending(i => i.Message);
+
+        // should return second item first
+        var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Snapshot.Match(
+            read,
+            matchOptions => matchOptions
+                .IgnoreField("**.Id")
+                .IgnoreField("**.PartitionKey")
+                .IgnoreField("**.CreatedDate")
+                .IgnoreField("**.UpdatedDate")
+                .IgnoreField("**.ETag"));
+    }
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_Skip()
+    {
+        var id1 = Guid.NewGuid().ToString();
+        var partitionKey1 = Guid.NewGuid().ToString();
+
+        var id2 = Guid.NewGuid().ToString();
+        var partitionKey2 = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey1);
+
+        createCommand1.Item.Message = "Message #1";
+
+        // save it
+        await createCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey2);
+
+        createCommand2.Item.Message = "Message #2";
+
+        // save it
+        await createCommand2.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = _commandProvider.Query();
+        queryCommand.OrderBy(i => i.Message).Skip(1);
+
+        // should return second item
+        var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Snapshot.Match(
+            read,
+            matchOptions => matchOptions
+                .IgnoreField("**.Id")
+                .IgnoreField("**.PartitionKey")
+                .IgnoreField("**.CreatedDate")
+                .IgnoreField("**.UpdatedDate")
+                .IgnoreField("**.ETag"));
+    }
+
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_Take()
+    {
+        var id1 = Guid.NewGuid().ToString();
+        var partitionKey1 = Guid.NewGuid().ToString();
+
+        var id2 = Guid.NewGuid().ToString();
+        var partitionKey2 = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey1);
+
+        createCommand1.Item.Message = "Message #1";
+
+        // save it
+        await createCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey2);
+
+        createCommand2.Item.Message = "Message #2";
+
+        // save it
+        await createCommand2.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = _commandProvider.Query();
+        queryCommand.OrderBy(i => i.Message).Take(1);
+
+        // should return first item
+        var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Snapshot.Match(
+            read,
+            matchOptions => matchOptions
+                .IgnoreField("**.Id")
+                .IgnoreField("**.PartitionKey")
+                .IgnoreField("**.CreatedDate")
+                .IgnoreField("**.UpdatedDate")
+                .IgnoreField("**.ETag"));
+    }
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_Where()
+    {
+        var id1 = Guid.NewGuid().ToString();
+        var partitionKey1 = Guid.NewGuid().ToString();
+
+        var id2 = Guid.NewGuid().ToString();
+        var partitionKey2 = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey1);
+
+        createCommand1.Item.Message = "Message #1";
+
+        // save it
+        await createCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey2);
+
+        createCommand2.Item.Message = "Message #2";
+
+        // save it
+        await createCommand2.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = _commandProvider.Query();
+        queryCommand.Where(i => i.Message == "Message #1");
+
+        // should return first item
+        var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Snapshot.Match(
+            read,
+            matchOptions => matchOptions
+                .IgnoreField("**.Id")
+                .IgnoreField("**.PartitionKey")
+                .IgnoreField("**.CreatedDate")
+                .IgnoreField("**.UpdatedDate")
+                .IgnoreField("**.ETag"));
+    }
+
+    private record CosmosItem(
+        string id,
+        string partitionKey);
 }
