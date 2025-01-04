@@ -237,7 +237,7 @@ This encapsulation ensures data integrity of the DTO. In addition, the command c
 
 ### ICommandProvider
 
-An `ICommandProvider` exposes the commands against a backing data store. Trelnex.Core.Data currently supports CosmosDB NoSQL. Trelnex.Core.Data.CommandProviders adds an in-memory data store for development and testing. This is easily extensible to support other data stores.
+An `ICommandProvider` exposes the commands against a backing data store. Trelnex.Core.Data currently supports [CosmosDB NoSQL](#cosmoscommandprovider---cosmosdb-nosql) and [SQL Server](#sqlcommandprovider---sql-server). Trelnex.Core.Data.Emulator adds an in-memory data store for development and testing. This is easily extensible to support other data stores.
 
 The `ICommandProvider` interface defines five methods:
 
@@ -392,6 +392,160 @@ Notice the `Changes` element does not include a property change for `privateMess
 #### Dependency Injection
 
 See [Command Providers Dependency Injection](#command-providers-dependency-injection) for more information.
+
+</details>
+
+## Command Providers
+
+### CosmosCommandProvider - CosmosDB NoSQL
+
+<details>
+
+<summary>Expand</summary>
+
+&nbsp;
+
+`CosmosCommandProvider` is an `ICommandProvider` that uses CosmosDB NoSQL as a backing store.
+
+#### CosmosCommandProvider - Configuration
+
+`appsettings.json` specifies the configuration of a `CosmosCommandProvider`.
+
+```
+  "CosmosDB": {
+    "EndpointUri": "FROM_ENV",
+    "Database": "trelnex-core-data-tests",
+    "Containers": [
+      {
+        "TypeName": "test-item",
+        "Container": "test-items"
+      }
+    ]
+  }
+```
+
+</details>
+
+### SqlCommandProvider - SQL Server
+
+<details>
+
+<summary>Expand</summary>
+
+&nbsp;
+
+`SqlCommandProvider` is an `ICommandProvider` that uses SQL Server as a backing store.
+
+#### SqlCommandProvider - Configuration
+
+`appsettings.json` specifies the configuration of a `SqlCommandProvider`.
+
+```
+  "SQL": {
+    "DataSource": "FROM_ENV",
+    "InitialCatalog": "trelnex-core-data-tests",
+    "Tables": [
+      {
+        "TypeName": "test-item",
+        "TableName": "test-items"
+      }
+    ]
+  }
+```
+
+#### SqlCommandProvider - Item Schema
+
+The table for the items must follow the following schema.
+
+```
+CREATE TABLE [test-items] (
+	[id] nvarchar(255) NOT NULL UNIQUE,
+	[partitionKey] nvarchar(255) NOT NULL,
+	[typeName] nvarchar(max) NOT NULL,
+	[createdDate] datetimeoffset NOT NULL,
+	[updatedDate] datetimeoffset NOT NULL,
+	[deletedDate] datetimeoffset NULL,
+	[isDeleted] bit NULL,
+	[_etag] nvarchar(255) NULL,
+
+	..., // TItem specific columns
+
+	PRIMARY KEY ([id], [partitionKey])
+);
+```
+
+#### SqlCommandProvider - Event Schema
+
+The table for the events must use the following schema.
+
+```
+CREATE TABLE [test-items-events] (
+	[id] nvarchar(255) NOT NULL UNIQUE,
+	[partitionKey] nvarchar(255) NOT NULL,
+	[typeName] nvarchar(max) NOT NULL,
+	[createdDate] datetimeoffset NOT NULL,
+	[updatedDate] datetimeoffset NOT NULL,
+	[deletedDate] datetimeoffset NULL,
+	[isDeleted] bit NULL,
+	[_etag] nvarchar(255) NULL,
+	[saveAction] nvarchar(max) NOT NULL,
+	[relatedId] nvarchar(255) NOT NULL,
+	[relatedTypeName] nvarchar(max) NOT NULL,
+	[changes] json NULL,
+	[context] json NULL,
+	PRIMARY KEY ([id], [partitionKey]),
+	FOREIGN KEY ([relatedId], [partitionKey]) REFERENCES [test-items]([id], [partitionKey])
+);
+```
+
+#### SqlCommandProvider - Item Trigger
+
+The following trigger must exist to check and update the item ETag.
+
+```
+CREATE TRIGGER [tr-test-items-etag]
+ON [test-items]
+AFTER INSERT, UPDATE
+AS
+BEGIN
+	SET NOCOUNT ON;
+
+    IF EXISTS (
+        SELECT 1
+        FROM [inserted] AS [i]
+        JOIN [deleted] AS [d] ON
+            [i].[id] = [d].[id] AND
+            [i].[partitionKey] = [d].[partitionKey]
+        WHERE [i].[_etag] != [d].[_etag]
+    ) THROW 2147418524, 'Precondition Failed.', 1;
+
+	UPDATE [test-items]
+	SET [_etag] = CONVERT(nvarchar(max), NEWID())
+	FROM [inserted] AS [i]
+	WHERE
+        [test-items].[id] = [i].[id] AND
+        [test-items].[partitionKey] = [i].[partitionKey]
+END;
+```
+
+#### SqlCommandProvider - Event Trigger
+
+The following trigger must exist to update the event ETag.
+
+```
+CREATE TRIGGER [tr-test-items-events-etag]
+ON [test-items-events]
+AFTER INSERT, UPDATE
+AS
+BEGIN
+	SET NOCOUNT ON;
+
+	UPDATE [test-items-events]
+	SET [_etag] = CONVERT(nvarchar(max), NEWID())
+	FROM [inserted] AS [i]
+	WHERE [test-items-events].[id] = [i].[id] AND [test-items-events].[partitionKey] = [i].[partitionKey]
+END;
+```
 
 </details>
 

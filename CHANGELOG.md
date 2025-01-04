@@ -8,9 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- [Trelnex.Core.Data:3.x.0] - add `SqlCommandProvider` that uses an Azure SQL database as backing store.
 - [Trelnex.Core.Api.Tests:3.x.0] - add integration tests for `AddSqlCommandProviders` `IServiceCollection` extension method.
 - [Trelnex.Core.Data:3.x.0] - add batch transactions.
+
+## [Trelnex.Core.Data:3.1.0] = 2025-01-03
+
+### Added
+
+- Added `SqlCommandProvider` implementation of `ICommandProvider<TItem>` that uses a SQL table as a backing store.
 
 ## [Trelnex.Core.Api:3.0.0] - 2025-01-02
 
