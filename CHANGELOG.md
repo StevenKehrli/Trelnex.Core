@@ -20,6 +20,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Consistent naming of Cosmos (tenantId, endpointUri, databaseId, containerId) and SQL (dataSource, initialCatalog, tableName) configuration.
 
+## [Trelnex.Core.Data:4.0.0] = 2025-01-04
+
+### Added
+
+- Added `IQueryResult<TInterface>` as result type from `QueryCommand` `ToAsyncEnumerable`.
+- `IQueryResult<TInterface>` exposes `Delete()` method to create an `ISaveCommand<TInterface>` to delete the item.
+- `IQueryResult<TInterface>` exposes `Update()` method to create an `ISaveCommand<TInterface>` to update the item.
+
+### Changed
+
+- `QueryCommand` `ToAsyncEnumerable` returns an `IAsyncEnumerable` of `IQueryResult<TInterface>`.
+
 ## [Trelnex.Core.Data:3.1.0] = 2025-01-03
 
 ### Added

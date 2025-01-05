@@ -57,9 +57,9 @@ internal class SaveCommand<TInterface, TItem>
     /// </summary>
     /// <param name="item">The item.</param>
     /// <param name="isReadOnly">Indicates if the item is read-only.</param>
+    /// <param name="validateAsyncDelegate">The action to validate the item.</param>
     /// <param name="saveAction">The type of save action.</param>
     /// <param name="saveAsyncDelegate">The action to save the item.</param>
-    /// <param name="validateAsyncDelegate">The action to validate the item.</param>
     /// <returns>A proxy item as TInterface.</returns>
     public static SaveCommand<TInterface, TItem> Create(
         TItem item,

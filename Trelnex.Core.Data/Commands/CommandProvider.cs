@@ -216,7 +216,9 @@ internal abstract partial class CommandProvider<TInterface, TItem>
             return null;
         }
 
-        return CreateReadResult(item);
+        return ReadResult<TInterface, TItem>.Create(
+            item: item,
+            validateAsyncDelegate: ValidateAsync);
     }
 
     /// <summary>
@@ -259,7 +261,9 @@ internal abstract partial class CommandProvider<TInterface, TItem>
             convertToQueryResult: item => {
                 return QueryResult<TInterface, TItem>.Create(
                     item: item,
-                    validateAsyncDelegate: ValidateAsync);
+                    validateAsyncDelegate: ValidateAsync,
+                    convertToDeleteCommand: CreateDeleteCommand,
+                    convertToUpdateCommand: CreateUpdateCommand);
             });
     }
 
@@ -324,20 +328,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
             isReadOnly: true,
             validateAsyncDelegate: ValidateAsync,
             saveAction: SaveAction.DELETED,
-            saveAsyncDelegate: UpdateItemAsync);        
-    }
-
-    /// <summary>
-    /// Create a <see cref="IReadResult{TInterface}"/> over the item.
-    /// </summary>
-    /// <param name="item">The item to create a proxy.</param>
-    /// <returns>The <see cref="IReadResult{TInterface}"/>.</returns>
-    private IReadResult<TInterface> CreateReadResult(
-        TItem item)
-    {
-        return ReadResult<TInterface, TItem>.Create(
-            item: item,
-            validateAsyncDelegate: ValidateAsync);
+            saveAsyncDelegate: UpdateItemAsync);
     }
 
     /// <summary>
