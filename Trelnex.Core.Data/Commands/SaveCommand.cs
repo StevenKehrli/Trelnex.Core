@@ -20,7 +20,7 @@ public interface ISaveCommand<TInterface>
     /// <param name="requestContext">The <see cref="IRequestContext"> that invoked this method.</param>
     /// <param name="cancellationToken">The cancellation token to cancel the operation.</param>
     /// <returns>The item that was saved.</returns>
-    Task<ISaveResult<TInterface>> SaveAsync(
+    Task<IReadResult<TInterface>> SaveAsync(
         IRequestContext requestContext,
         CancellationToken cancellationToken);
 
@@ -93,9 +93,9 @@ internal class SaveCommand<TInterface, TItem>
     /// </summary>
     /// <param name="requestContext">The <see cref="IRequestContext"> that invoked this method.</param>
     /// <param name="cancellationToken">The cancellation token to cancel the operation.</param>
-    /// <returns>A <see cref="ISaveResult{TInterface}"/> representing the saved item.</returns>
+    /// <returns>A <see cref="IReadResult{TInterface}"/> representing the saved item.</returns>
     /// <exception cref="InvalidOperationException">The command is no longer valid.</exception>
-    public async Task<ISaveResult<TInterface>> SaveAsync(
+    public async Task<IReadResult<TInterface>> SaveAsync(
         IRequestContext requestContext,
         CancellationToken cancellationToken)
     {
@@ -135,7 +135,7 @@ internal class SaveCommand<TInterface, TItem>
         _saveAsyncDelegate = null!;
 
         // create the read result and return
-        return SaveResult<TInterface, TItem>.Create(
+        return ReadResult<TInterface, TItem>.Create(
             item: updatedItem,
             validateAsyncDelegate: _validateAsyncDelegate);
     }

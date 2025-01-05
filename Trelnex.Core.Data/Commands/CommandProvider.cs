@@ -256,7 +256,11 @@ internal abstract partial class CommandProvider<TInterface, TItem>
         // create the query command
         return CreateQueryCommand(
             expressionConverter: _expressionConverter,
-            convertToReadResult: CreateReadResult);
+            convertToQueryResult: item => {
+                return QueryResult<TInterface, TItem>.Create(
+                    item: item,
+                    validateAsyncDelegate: ValidateAsync);
+            });
     }
 
     /// <summary>
@@ -299,11 +303,11 @@ internal abstract partial class CommandProvider<TInterface, TItem>
     /// Create an instance of the <see cref="IQueryCommand{Interface}"/>.
     /// </summary>
     /// <param name="expressionConverter">The <see cref="ExpressionConverter{TInterface,TItem}"/> to convert an expression using a TInterface to an expression using a TItem.</param>
-    /// <param name="convertToReadResult">The method to convert a TItem to a <see cref="IReadResult{TInterface}"/>.</param>
+    /// <param name="convertToQueryResult">The method to convert a TItem to a <see cref="IQueryResult{TInterface}"/>.</param>
     /// <returns>The <see cref="IQueryCommand{Interface}"/>.</returns>
     protected abstract IQueryCommand<TInterface> CreateQueryCommand(
         ExpressionConverter<TInterface, TItem> expressionConverter,
-        Func<TItem, IReadResult<TInterface>> convertToReadResult);
+        Func<TItem, IQueryResult<TInterface>> convertToQueryResult);
 
     /// <summary>
     /// Create an <see cref="ISaveCommand{TInterface}"/> to delete the item.

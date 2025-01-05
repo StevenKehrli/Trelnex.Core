@@ -43,8 +43,8 @@ public interface IQueryCommand<TInterface>
     /// Executes the query and returns the results as an async enumerable.
     /// </summary>
     /// <typeparam name="TInterface">The specified interface type.</typeparam>
-    /// <returns>The <see cref="IAsyncEnumerable{IReadResult{TInterface}}"/>.</returns>
-    IAsyncEnumerable<IReadResult<TInterface>> ToAsyncEnumerable();
+    /// <returns>The <see cref="IAsyncEnumerable{IQueryResult{TInterface}}"/>.</returns>
+    IAsyncEnumerable<IQueryResult<TInterface>> ToAsyncEnumerable();
 
     /// <summary>
     /// Filters a sequence of items based on a predicate.
@@ -140,8 +140,8 @@ internal abstract class QueryCommand<TInterface, TItem>(
     /// Executes the query and returns the results as an async enumerable.
     /// </summary>
     /// <typeparam name="TInterface">The specified interface type.</typeparam>
-    /// <returns>The <see cref="IAsyncEnumerable{IReadResult{TInterface}}"/>.</returns>
-    public IAsyncEnumerable<IReadResult<TInterface>> ToAsyncEnumerable()
+    /// <returns>The <see cref="IAsyncEnumerable{IQueryResult{TInterface}}"/>.</returns>
+    public IAsyncEnumerable<IQueryResult<TInterface>> ToAsyncEnumerable()
     {
         return ExecuteAsync();
     }
@@ -167,7 +167,7 @@ internal abstract class QueryCommand<TInterface, TItem>(
     /// </summary>
     /// <typeparam name="TInterface">The specified interface type.</typeparam>
     /// <param name="cancellationToken">The cancellation token to cancel the operation.</param>
-    /// <returns>The <see cref="IAsyncEnumerable{IReadResult{TItem}}"/>.</returns>
-    protected abstract IAsyncEnumerable<IReadResult<TInterface>> ExecuteAsync(
+    /// <returns>The <see cref="IAsyncEnumerable{IQueryResult{TItem}}"/>.</returns>
+    protected abstract IAsyncEnumerable<IQueryResult<TInterface>> ExecuteAsync(
         CancellationToken cancellationToken = default);
 }

@@ -6,7 +6,7 @@ namespace Trelnex.Core.Data;
 /// The class to expose and validate a item read from the backing data store.
 /// </summary>
 /// <typeparam name="TInterface">The interface type of the items in the backing data store.</typeparam>
-public interface ISaveResult<TInterface>
+public interface IQueryResult<TInterface>
     where TInterface : class, IBaseItem
 {
     /// <summary>
@@ -27,8 +27,8 @@ public interface ISaveResult<TInterface>
 /// The class to read the item in the backing data store.
 /// </summary>
 /// <typeparam name="TInterface">The interface type of the items in the backing data store.</typeparam>
-internal class SaveResult<TInterface, TItem>
-    : ProxyManager<TInterface, TItem>, ISaveResult<TInterface>
+internal class QueryResult<TInterface, TItem>
+    : ProxyManager<TInterface, TItem>, IQueryResult<TInterface>
     where TInterface : class, IBaseItem
     where TItem : BaseItem, TInterface
 {
@@ -38,12 +38,12 @@ internal class SaveResult<TInterface, TItem>
     /// <param name="item">The item.</param>
     /// <param name="validateAsyncDelegate">The action to validate the item.</param>
     /// <returns>A proxy item as TInterface.</returns>
-    public static SaveResult<TInterface, TItem> Create(
+    public static QueryResult<TInterface, TItem> Create(
         TItem item,
         ValidateAsyncDelegate<TInterface, TItem> validateAsyncDelegate)
     {
         // create the proxy manager - need an item reference for the ItemProxy onInvoke delegate
-        var proxyManager = new SaveResult<TInterface, TItem>
+        var proxyManager = new QueryResult<TInterface, TItem>
         {
             _item = item,
             _isReadOnly = true,
