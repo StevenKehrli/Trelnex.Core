@@ -6,11 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
 ### Changed
 
-- [Trelnex.Core.Data] - add batch transactions.
+### Deleted
 
-## [Trelnex.Core.Api:4.0.0] = 2025-01-04
+## [Trelnex.Core.Data:4.1.0] - 2025-01-05
+
+### Added
+
+- Added `SqlCommandProviderFactory` `GetStatus` method as health check for the underlying SQL connection.
+
+## [Trelnex.Core.Api:4.0.0] - 2025-01-04
 
 ### Added
 
@@ -20,7 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Consistent naming of Cosmos (tenantId, endpointUri, databaseId, containerId) and SQL (dataSource, initialCatalog, tableName) configuration.
 
-## [Trelnex.Core.Data:4.0.0] = 2025-01-04
+## [Trelnex.Core.Data:4.0.0] - 2025-01-04
 
 ### Added
 
@@ -32,7 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `QueryCommand` `ToAsyncEnumerable` returns an `IAsyncEnumerable` of `IQueryResult<TInterface>`.
 
-## [Trelnex.Core.Data:3.1.0] = 2025-01-03
+## [Trelnex.Core.Data:3.1.0] - 2025-01-03
 
 ### Added
 
