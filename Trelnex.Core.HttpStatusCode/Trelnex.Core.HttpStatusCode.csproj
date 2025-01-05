@@ -12,7 +12,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>Trelnex.Core</RootNamespace>
-        <DebugType>portable</DebugType>
+        <DebugType>embedded</DebugType>
         <IncludeSymbols>true</IncludeSymbols>
     </PropertyGroup>
 
