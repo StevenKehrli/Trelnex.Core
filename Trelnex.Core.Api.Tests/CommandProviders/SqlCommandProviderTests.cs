@@ -41,11 +41,11 @@ public class SqlCommandProviderTests
         var initialCatalog = configuration
             .GetSection("SqlCommandProviders:InitialCatalog")
             .Value;
-        
+
         _tableName = configuration
             .GetSection("SqlCommandProviders:Tables:0:TableName")
             .Value!;
-        
+
         var scsBuilder = new SqlConnectionStringBuilder()
         {
             DataSource = dataSource,

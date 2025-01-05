@@ -20,7 +20,7 @@ public interface ISaveCommand<TInterface>
     /// <param name="requestContext">The <see cref="IRequestContext"> that invoked this method.</param>
     /// <param name="cancellationToken">The cancellation token to cancel the operation.</param>
     /// <returns>The item that was saved.</returns>
-    Task<IReadResult<TInterface>> SaveAsync(
+    Task<ISaveResult<TInterface>> SaveAsync(
         IRequestContext requestContext,
         CancellationToken cancellationToken);
 
@@ -64,18 +64,18 @@ internal class SaveCommand<TInterface, TItem>
     public static SaveCommand<TInterface, TItem> Create(
         TItem item,
         bool isReadOnly,
+        ValidateAsyncDelegate<TInterface, TItem> validateAsyncDelegate,
         SaveAction saveAction,
-        SaveAsyncDelegate<TInterface, TItem> saveAsyncDelegate,
-        ValidateAsyncDelegate<TInterface, TItem> validateAsyncDelegate)
+        SaveAsyncDelegate<TInterface, TItem> saveAsyncDelegate)
     {
         // create the proxy manager - need an item reference for the ItemProxy onInvoke delegate
         var proxyManager = new SaveCommand<TInterface, TItem>
         {
             _item = item,
             _isReadOnly = isReadOnly,
+            _validateAsyncDelegate = validateAsyncDelegate,
             _saveAction = saveAction,
             _saveAsyncDelegate = saveAsyncDelegate,
-            _validateAsyncDelegate = validateAsyncDelegate,
         };
 
         // create the proxy
@@ -93,9 +93,9 @@ internal class SaveCommand<TInterface, TItem>
     /// </summary>
     /// <param name="requestContext">The <see cref="IRequestContext"> that invoked this method.</param>
     /// <param name="cancellationToken">The cancellation token to cancel the operation.</param>
-    /// <returns>A <see cref="IReadResult{TInterface}"/> representing the saved item.</returns>
+    /// <returns>A <see cref="ISaveResult{TInterface}"/> representing the saved item.</returns>
     /// <exception cref="InvalidOperationException">The command is no longer valid.</exception>
-    public async Task<IReadResult<TInterface>> SaveAsync(
+    public async Task<ISaveResult<TInterface>> SaveAsync(
         IRequestContext requestContext,
         CancellationToken cancellationToken)
     {
@@ -106,7 +106,7 @@ internal class SaveCommand<TInterface, TItem>
         }
 
         // validate the underlying item
-        var validationResult = await _validateAsyncDelegate(_item, cancellationToken);
+        var validationResult = await ValidateAsync(cancellationToken);
 
         validationResult.ValidateOrThrow<TItem>();
 
@@ -135,7 +135,7 @@ internal class SaveCommand<TInterface, TItem>
         _saveAsyncDelegate = null!;
 
         // create the read result and return
-        return ReadResult<TInterface, TItem>.Create(
+        return SaveResult<TInterface, TItem>.Create(
             item: updatedItem,
             validateAsyncDelegate: _validateAsyncDelegate);
     }

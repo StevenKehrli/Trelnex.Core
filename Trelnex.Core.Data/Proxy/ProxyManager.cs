@@ -42,7 +42,7 @@ internal abstract class ProxyManager<TInterface, TItem>
     /// </summary>
     protected ValidateAsyncDelegate<TInterface, TItem> _validateAsyncDelegate = null!;
 
-    private PropertyChanges _propertyChanges = new();
+    private readonly PropertyChanges _propertyChanges = new();
 
     /// <summary>
     /// The action to validate the item.

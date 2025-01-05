@@ -157,9 +157,11 @@ internal class CosmosCommandProvider<TInterface, TItem>(
     /// Create an instance of the <see cref="IQueryCommand{Interface}"/>.
     /// </summary>
     /// <param name="expressionConverter">The <see cref="ExpressionConverter{TInterface,TItem}"/> to convert an expression using a TInterface to an expression using a TItem.</param>
+    /// <param name="convertToReadResult">The method to convert a TItem to a <see cref="IReadResult{TInterface}"/>.</param>
     /// <returns>The <see cref="IQueryCommand{Interface}"/>.</returns>
     protected override IQueryCommand<TInterface> CreateQueryCommand(
-        ExpressionConverter<TInterface, TItem> expressionConverter)
+        ExpressionConverter<TInterface, TItem> expressionConverter,
+        Func<TItem, IReadResult<TInterface>> convertToReadResult)
     {
         // add typeName and isDeleted predicates
         // the lambda parameter i is an item of TInterface type
@@ -171,7 +173,7 @@ internal class CosmosCommandProvider<TInterface, TItem>(
         return new CosmosQueryCommand(
             expressionConverter: expressionConverter,
             queryable: queryable,
-            convertToReadResult: CreateReadResult);
+            convertToReadResult: convertToReadResult);
     }
 
     private class CosmosQueryCommand(
