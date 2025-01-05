@@ -20,15 +20,64 @@ public class SqlCommandProviderFactory
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    private string _connectionString;
-    private Action<DbConnection> _connectionInterceptor;
+    private readonly string _connectionString;
+    private readonly Action<DbConnection> _connectionInterceptor;
+    private readonly Func<SqlCommandProviderFactoryStatus> _getStatus;
 
     private SqlCommandProviderFactory(
-        string connectionString,
+        string dataSource,
+        string initialCatalog,
         Action<DbConnection> connectionInterceptor)
     {
-        _connectionString = connectionString;
+        // build the connection string
+        var scsBuilder = new SqlConnectionStringBuilder()
+        {
+            DataSource = dataSource,
+            InitialCatalog = initialCatalog,
+            Encrypt = true,
+        };
+
+        _connectionString = scsBuilder.ConnectionString;
         _connectionInterceptor = connectionInterceptor;
+
+        // build the health check
+        var dataOptions = new DataOptions()
+            .UseSqlServer(_connectionString)
+            .UseBeforeConnectionOpened(connectionInterceptor);
+
+        _getStatus = () =>
+        {
+            try
+            {
+                using var dataConnection = new DataConnection(dataOptions);
+
+                // get the multi-line version string
+                var version = dataConnection.Query<string>("SELECT @@VERSION");
+
+                // split the version into each line
+                char[] delimiterChars = [ '\r', '\n', '\t' ];
+
+                var versionArray = version
+                    .FirstOrDefault()?
+                    .Split(delimiterChars, StringSplitOptions.RemoveEmptyEntries);
+
+                return new SqlCommandProviderFactoryStatus(
+                    DataSource: dataSource,
+                    InitialCatalog: initialCatalog,
+                    IsHealthy: true,
+                    Version: versionArray,
+                    Error: null);
+            }
+            catch (Exception ex)
+            {
+                return new SqlCommandProviderFactoryStatus(
+                    DataSource: dataSource,
+                    InitialCatalog: initialCatalog,
+                    IsHealthy: false,
+                    Version: null,
+                    Error: ex.Message);
+            }
+        };
     }
 
     /// <summary>
@@ -39,14 +88,6 @@ public class SqlCommandProviderFactory
     public static async Task<SqlCommandProviderFactory> Create(
         SqlClientOptions sqlClientOptions)
     {
-        // build the data options
-        var scsBuilder = new SqlConnectionStringBuilder()
-        {
-            DataSource = sqlClientOptions.DataSource,
-            InitialCatalog = sqlClientOptions.InitialCatalog,
-            Encrypt = true,
-        };
-
         // build the connection interceptor
         var connectionInterceptor = new Action<DbConnection>(dbConnection =>
         {
@@ -59,18 +100,14 @@ public class SqlCommandProviderFactory
             sqlConnection.AccessToken = accessToken;
         });
 
-        // warm-up the connection
-        var dataOptions = new DataOptions()
-            .UseSqlServer(scsBuilder.ConnectionString)
-            .UseBeforeConnectionOpened(connectionInterceptor);
-
-        using var dataConnection = new DataConnection(dataOptions);
-
-        var version = dataConnection.Query<string>("SELECT @@VERSION");
-
+        // build the factory
         var factory = new SqlCommandProviderFactory(
-            scsBuilder.ConnectionString,
+            dataSource: sqlClientOptions.DataSource,
+            initialCatalog: sqlClientOptions.InitialCatalog,
             connectionInterceptor);
+
+        // warm-up the connection
+        var status = factory.GetStatus();
 
         return await Task.FromResult(factory);
     }
@@ -136,6 +173,8 @@ public class SqlCommandProviderFactory
             validator,
             commandOperations);
     }
+
+    public SqlCommandProviderFactoryStatus GetStatus() => _getStatus();
 }
 
 public record SqlClientOptions(
@@ -143,3 +182,10 @@ public record SqlClientOptions(
     string Scope,
     string DataSource,
     string InitialCatalog);
+
+public record SqlCommandProviderFactoryStatus(
+    string DataSource,
+    string InitialCatalog,
+    bool IsHealthy,
+    string[]? Version,
+    string? Error);
