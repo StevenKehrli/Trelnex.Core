@@ -12,6 +12,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>Trelnex.Core.Api</RootNamespace>
+    </PropertyGroup>
 
     <PropertyGroup>
         <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
