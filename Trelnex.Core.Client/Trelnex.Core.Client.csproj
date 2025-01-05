@@ -12,8 +12,6 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>Trelnex.Core.Client</RootNamespace>
-        <DebugType>Embedded</DebugType>
-        <IncludeSymbols>true</IncludeSymbols>
     </PropertyGroup>
 
     <ItemGroup>
@@ -27,7 +25,6 @@
 
     <ItemGroup>
         <PackageReference Include="Azure.Identity" Version="1.13.1" />
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
         <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="7.2.0" />
         <PackageReference Include="Trelnex.Core.HttpStatusCode" Version="2.0.0" />
     </ItemGroup>

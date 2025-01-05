@@ -12,8 +12,6 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>Trelnex.Core.Data</RootNamespace>
-        <DebugType>Embedded</DebugType>
-        <IncludeSymbols>true</IncludeSymbols>
     </PropertyGroup>
 
     <PropertyGroup>
@@ -32,7 +30,6 @@
         <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.46.0" />
         <PackageReference Include="Microsoft.Azure.Cosmos.Encryption" Version="2.0.4" />
         <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
         <PackageReference Include="Trelnex.Core.HttpStatusCode" Version="2.0.0" />
     </ItemGroup>
 
