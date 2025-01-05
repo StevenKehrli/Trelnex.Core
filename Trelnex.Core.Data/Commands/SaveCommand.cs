@@ -57,25 +57,25 @@ internal class SaveCommand<TInterface, TItem>
     /// </summary>
     /// <param name="item">The item.</param>
     /// <param name="isReadOnly">Indicates if the item is read-only.</param>
+    /// <param name="validateAsyncDelegate">The action to validate the item.</param>
     /// <param name="saveAction">The type of save action.</param>
     /// <param name="saveAsyncDelegate">The action to save the item.</param>
-    /// <param name="validateAsyncDelegate">The action to validate the item.</param>
     /// <returns>A proxy item as TInterface.</returns>
     public static SaveCommand<TInterface, TItem> Create(
         TItem item,
         bool isReadOnly,
+        ValidateAsyncDelegate<TInterface, TItem> validateAsyncDelegate,
         SaveAction saveAction,
-        SaveAsyncDelegate<TInterface, TItem> saveAsyncDelegate,
-        ValidateAsyncDelegate<TInterface, TItem> validateAsyncDelegate)
+        SaveAsyncDelegate<TInterface, TItem> saveAsyncDelegate)
     {
         // create the proxy manager - need an item reference for the ItemProxy onInvoke delegate
         var proxyManager = new SaveCommand<TInterface, TItem>
         {
             _item = item,
             _isReadOnly = isReadOnly,
+            _validateAsyncDelegate = validateAsyncDelegate,
             _saveAction = saveAction,
             _saveAsyncDelegate = saveAsyncDelegate,
-            _validateAsyncDelegate = validateAsyncDelegate,
         };
 
         // create the proxy
@@ -106,7 +106,7 @@ internal class SaveCommand<TInterface, TItem>
         }
 
         // validate the underlying item
-        var validationResult = await _validateAsyncDelegate(_item, cancellationToken);
+        var validationResult = await ValidateAsync(cancellationToken);
 
         validationResult.ValidateOrThrow<TItem>();
 

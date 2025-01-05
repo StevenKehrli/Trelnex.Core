@@ -8,8 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- [Trelnex.Core.Api.Tests:3.x.0] - add integration tests for `AddSqlCommandProviders` `IServiceCollection` extension method.
-- [Trelnex.Core.Data:3.x.0] - add batch transactions.
+- [Trelnex.Core.Data] - add batch transactions.
+
+## [Trelnex.Core.Api:4.0.0] = 2025-01-04
+
+### Added
+
+- Added `SqlCommandProviderExtension` `AddSqlCommandProviders` `IServiceCollection` extension method
+
+### Changed
+
+- Consistent naming of Cosmos (tenantId, endpointUri, databaseId, containerId) and SQL (dataSource, initialCatalog, tableName) configuration.
+
+## [Trelnex.Core.Data:4.0.0] = 2025-01-04
+
+### Added
+
+- Added `IQueryResult<TInterface>` as result type from `QueryCommand` `ToAsyncEnumerable`.
+- `IQueryResult<TInterface>` exposes `Delete()` method to create an `ISaveCommand<TInterface>` to delete the item.
+- `IQueryResult<TInterface>` exposes `Update()` method to create an `ISaveCommand<TInterface>` to update the item.
+
+### Changed
+
+- `QueryCommand` `ToAsyncEnumerable` returns an `IAsyncEnumerable` of `IQueryResult<TInterface>`.
 
 ## [Trelnex.Core.Data:3.1.0] = 2025-01-03
 
@@ -22,8 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Updated to dotnet 9.0.x
-- Changed `CosmosExtensions` `AddCosmosCommandProviders` `IServiceCollection` extension method namespace from `Trelnex.Core.Api.Cosmos` to `Trelnex.Core.Api.CommandProviders`.
-- Changed `CosmosExtensions` `AddCosmosCommandProviders` `IServiceCollection` extension method to use `CosmosCommandProviderFactory`.
+- Changed `CosmosCommandProviderExtensions` `AddCosmosCommandProviders` `IServiceCollection` extension method namespace from `Trelnex.Core.Api.Cosmos` to `Trelnex.Core.Api.CommandProviders`.
+- Changed `CosmosCommandProviderExtensions` `AddCosmosCommandProviders` `IServiceCollection` extension method to use `CosmosCommandProviderFactory`.
 
 ## [Trelnex.Core.Data.Emulator:3.0.0] - 2025-01-02
 

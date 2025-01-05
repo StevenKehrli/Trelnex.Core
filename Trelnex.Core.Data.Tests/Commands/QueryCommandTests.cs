@@ -364,7 +364,6 @@ public class QueryCommandTests
                 .IgnoreField("**.ETag"));
     }
 
-
     [Test]
     public async Task QueryCommand_ToAsyncEnumerable_Take()
     {
@@ -477,5 +476,121 @@ public class QueryCommandTests
                 .IgnoreField("**.CreatedDate")
                 .IgnoreField("**.UpdatedDate")
                 .IgnoreField("**.ETag"));
+    }
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_Delete()
+    {
+        var id = Guid.NewGuid().ToString();
+        var partitionKey = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        // create our command provider
+        var commandProvider =
+            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+                typeName: _typeName);
+
+        var createCommand = commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand.Item.PublicMessage = "Public #1";
+        createCommand.Item.PrivateMessage = "Private #1";
+
+        // save it
+        await createCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = commandProvider.Query();
+
+        // should return first item
+        var read1 = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Assert.That(read1, Is.Not.Null);
+        Assert.That(read1, Has.Length.EqualTo(1));
+
+        // get the first item and delete
+        var deleteCommand = read1[0].Delete();
+
+        var result = await deleteCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        Snapshot.Match(
+            result,
+            matchOptions => matchOptions
+                .IgnoreField("**.Id")
+                .IgnoreField("**.PartitionKey")
+                .IgnoreField("**.CreatedDate")
+                .IgnoreField("**.UpdatedDate")
+                .IgnoreField("**.DeletedDate")
+                .IgnoreField("**.ETag"));
+
+        // should return empty
+        var read2 = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Assert.That(read2, Is.Not.Null);
+        Assert.That(read2, Has.Length.EqualTo(0));
+    }
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_Update()
+    {
+        var id = Guid.NewGuid().ToString();
+        var partitionKey = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        // create our command provider
+        var commandProvider =
+            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+                typeName: _typeName);
+
+        var createCommand = commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand.Item.PublicMessage = "Public #1";
+        createCommand.Item.PrivateMessage = "Private #1";
+
+        // save it
+        await createCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = commandProvider.Query();
+
+        // should return first item
+        var read1 = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Assert.That(read1, Is.Not.Null);
+        Assert.That(read1, Has.Length.EqualTo(1));
+
+        // get the first item and update
+        var updateCommand = read1[0].Update();
+
+        updateCommand.Item.PublicMessage = "Public #2";
+        updateCommand.Item.PrivateMessage = "Private #2";
+
+        var result = await updateCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // should return empty
+        var read2 = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Snapshot.Match(
+            read2,
+            matchOptions => matchOptions
+                .IgnoreField("**.Id")
+                .IgnoreField("**.PartitionKey")
+                .IgnoreField("**.CreatedDate")
+                .IgnoreField("**.UpdatedDate")
+                .IgnoreField("**.ETag"));
+
     }
 }

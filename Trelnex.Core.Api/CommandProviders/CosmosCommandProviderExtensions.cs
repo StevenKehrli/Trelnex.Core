@@ -12,7 +12,7 @@ namespace Trelnex.Core.Api.CommandProviders;
 /// <summary>
 /// Extension method to add the necessary command providers to the <see cref="IServiceCollection"/>.
 /// </summary>
-public static class CosmosExtensions
+public static class CosmosCommandProvidersExtensions
 {
     /// <summary>
     /// Add the necessary command providers as a <see cref="ICommandProvider{TInterface}"/> to the <see cref="IServiceCollection"/>.
@@ -28,38 +28,26 @@ public static class CosmosExtensions
         ILogger bootstrapLogger,
         Action<ICommandProviderOptions> configureCommandProviders)
     {
-        var cosmosConfiguration = configuration.GetSection("CosmosDB").Get<CosmosConfiguration>();
-        if (cosmosConfiguration is null) return services;
+        var providerConfiguration = configuration.GetSection("CosmosCommandProviders").Get<CosmosCommandProviderConfiguration>();
+        if (providerConfiguration is null) return services;
 
         // parse the cosmos options
-        var cosmosOptions = CosmosOptions.Parse(cosmosConfiguration);
+        var options = CosmosCommandProviderOptions.Parse(providerConfiguration);
 
         // create our factory
-        var tokenCredentialForCosmosClient =
-            GetTokenCredentialForCosmosClient(
-                bootstrapLogger,
-                cosmosOptions.EndpointUri);
-
-        var tokenCredentialForKeyResolver =
-            GetTokenCredentialForKeyResolver(
-                bootstrapLogger,
-                cosmosOptions.TenantId);
+        var cosmosClientOptions = GetCosmosClientOptions(bootstrapLogger, options);
+        var keyResolverOptions = GetKeyResolverOptions(bootstrapLogger, options);
 
         var factoryTask = CosmosCommandProviderFactory.Create(
-            new CosmosClientOptions(
-                AccountEndpoint: cosmosOptions.EndpointUri,
-                TokenCredential: tokenCredentialForCosmosClient,
-                DatabaseId: cosmosOptions.Database,
-                ContainerIds: cosmosOptions.GetContainerIds()),
-            new KeyResolverOptions(
-                TokenCredential: tokenCredentialForKeyResolver));
+            cosmosClientOptions,
+            keyResolverOptions);
 
         // create the command providers and inject
         var commandProviderOptions = new CommandProviderOptions(
             services: services,
             bootstrapLogger: bootstrapLogger,
             factory: factoryTask.Result!,
-            cosmosOptions: cosmosOptions);
+            options: options);
 
         configureCommandProviders(commandProviderOptions);
 
@@ -67,7 +55,7 @@ public static class CosmosExtensions
     }
 
     /// <summary>
-    /// Gets a <see cref="TokenCredential"/> to be used by <see cref="CosmosClient"/>.
+    /// Gets the <see cref="CosmosClientOptions"/> to be used by <see cref="CosmosClient"/>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -75,17 +63,17 @@ public static class CosmosExtensions
     /// </para>
     /// </remarks>
     /// <param name="bootstrapLogger">The <see cref="ILogger"/> to write the CommandProvider bootstrap logs.</param>
-    /// <param name="endpointUri">The Uri to the Cosmos Account.</param>
-    /// <returns>A valid <see cref="TokenCredential"/>.</returns>
-    private static TokenCredential GetTokenCredentialForCosmosClient(
+    /// <param name="options">The <see cref="CosmosCommandProviderOptions"/>.</param>
+    /// <returns>A valid <see cref="CosmosClientOptions"/>.</returns>
+    private static CosmosClientOptions GetCosmosClientOptions(
         ILogger bootstrapLogger,
-        string endpointUri)
+        CosmosCommandProviderOptions options)
     {
         // get the token credential and initialize
         var tokenCredential = CredentialFactory.Get(bootstrapLogger, "CosmosClient");
 
         // format the scope
-        var uri = new Uri(endpointUri);
+        var uri = new Uri(options.EndpointUri);
 
         var scope = new UriBuilder(
             scheme: uri.Scheme,
@@ -99,11 +87,15 @@ public static class CosmosExtensions
 
         tokenCredential.GetToken(tokenRequestContext, default);
 
-        return tokenCredential;
+        return new CosmosClientOptions(
+            AccountEndpoint: options.EndpointUri,
+            TokenCredential: tokenCredential,
+            DatabaseId: options.DatabaseId,
+            ContainerIds: options.GetContainerIds());
     }
 
     /// <summary>
-    /// Gets a <see cref="TokenCredential"/> to be used by <see cref="KeyResolver"/>.
+    /// Gets a <see cref="KeyResolverOptions"/> to be used by <see cref="KeyResolver"/>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -111,29 +103,30 @@ public static class CosmosExtensions
     /// </para>
     /// </remarks>
     /// <param name="bootstrapLogger">The <see cref="ILogger"/> to write the CommandProvider bootstrap logs.</param>
-    /// <param name="tenantId">The id of the Azure tenant (represents the organization).</param>
-    /// <returns>A valid <see cref="TokenCredential"/>.</returns>
-    private static TokenCredential GetTokenCredentialForKeyResolver(
+    /// <param name="options">The <see cref="CosmosCommandProviderOptions"/>.</param>
+    /// <returns>A valid <see cref="KeyResolverOptions"/>.</returns>
+    private static KeyResolverOptions GetKeyResolverOptions(
         ILogger bootstrapLogger,
-        string tenantId)
+        CosmosCommandProviderOptions options)
     {
         // get the token credential and initialize
         var tokenCredential = CredentialFactory.Get(bootstrapLogger, "KeyResolver");
 
         var tokenRequestContext = new TokenRequestContext(
             scopes: ["https://vault.azure.net/.default"],
-            tenantId: tenantId);
+            tenantId: options.TenantId);
 
         tokenCredential.GetToken(tokenRequestContext, default);
 
-        return tokenCredential;
+        return new KeyResolverOptions(
+            TokenCredential: tokenCredential);
     }
 
     private class CommandProviderOptions(
         IServiceCollection services,
         ILogger bootstrapLogger,
         CosmosCommandProviderFactory factory,
-        CosmosOptions cosmosOptions)
+        CosmosCommandProviderOptions options)
         : ICommandProviderOptions
     {
         public ICommandProviderOptions Add<TInterface, TItem>(
@@ -144,21 +137,21 @@ public static class CosmosExtensions
             where TItem : BaseItem, TInterface, new()
         {
             // get the container for the specified item type
-            var container = cosmosOptions.GetContainerId(typeName);
+            var containerId = options.GetContainerId(typeName);
 
-            if (container is null)
+            if (containerId is null)
             {
                 throw new ArgumentException(
-                    $"The container for TypeName '{typeName}' is not found.",
+                    $"The Container for TypeName '{typeName}' is not found.",
                     nameof(typeName));
             }
 
             // create the command provider and inject
             var commandProvider = factory.Create<TInterface, TItem>(
-                container,
-                typeName,
-                itemValidator,
-                commandOperations);
+                containerId: containerId,
+                typeName: typeName,
+                validator: itemValidator,
+                commandOperations: commandOperations);
 
             services.AddSingleton(commandProvider);
 
@@ -166,13 +159,14 @@ public static class CosmosExtensions
             [
                 typeof(TInterface), // TInterface,
                 typeof(TItem), // TItem,
-                cosmosOptions.Database, // database,
-                container, // container
+                options.EndpointUri, // account
+                options.DatabaseId, // database,
+                containerId, // container
             ];
 
             // log - the :l format parameter (l = literal) to avoid the quotes
             bootstrapLogger.LogInformation(
-                message: "Added CommandProvider<{TInterface:l}, {TItem:l}> using Database '{database:l}' and Container '{container:l}'.",
+                message: "Added CommandProvider<{TInterface:l}, {TItem:l}> using EndpointUri '{endpointUri:l}', DatabaseId '{databaseId:l}', and ContainerId '{containerId:l}'.",
                 args: args);
 
             return this;
@@ -183,10 +177,10 @@ public static class CosmosExtensions
     /// Represents the container for the specified item type.
     /// </summary>
     /// <param name="TypeName">The specified item type name.</param>
-    /// <param name="Container">The container for the specified item type.</param>
+    /// <param name="ContainerId">The container for the specified item type.</param>
     private record ContainerConfiguration(
         string TypeName,
-        string Container);
+        string ContainerId);
 
     /// <summary>
     /// Represents the configuration properties for Cosmos command providers.
@@ -196,7 +190,7 @@ public static class CosmosExtensions
     /// https://github.com/dotnet/runtime/issues/83803
     /// </para>
     /// </remarks>
-    private record CosmosConfiguration
+    private record CosmosCommandProviderConfiguration
     {
         /// <summary>
         /// The id of the Azure tenant (represents the organization).
@@ -211,7 +205,7 @@ public static class CosmosExtensions
         /// <summary>
         /// The database name to initialize.
         /// </summary>
-        public required string Database { get; init; }
+        public required string DatabaseId { get; init; }
 
         /// <summary>
         /// The collection of containers by item type
@@ -220,35 +214,35 @@ public static class CosmosExtensions
     }
 
     /// <summary>
-    /// Represents the Cosmos options: the collection containers by item type.
+    /// Represents the Cosmos command provider options: the collection of containers by item type.
     /// </summary>
-    private class CosmosOptions(
+    private class CosmosCommandProviderOptions(
         string tenantId,
         string endpointUri,
-        string database)
+        string databaseId)
     {
         /// <summary>
         /// The collection of containers by item type.
         /// </summary>
-        private readonly Dictionary<string, string> _containerByTypeName = [];
+        private readonly Dictionary<string, string> _containerIdsByTypeName = [];
 
         /// <summary>
-        /// Initialize an instance of <see cref="CosmosOptions"/>.
+        /// Initialize an instance of <see cref="CosmosCommandProviderOptions"/>.
         /// </summary>
-        /// <param name="cosmosConfiguration">The cosmos configuration.</param>
-        /// <returns>The <see cref="CosmosOptions"/>.</returns>
+        /// <param name="providerConfiguration">The cosmos command providers configuration.</param>
+        /// <returns>The <see cref="CosmosCommandProviderOptions"/>.</returns>
         /// <exception cref="AggregateException">Represents one or more configuration errors.</exception>
-        public static CosmosOptions Parse(
-            CosmosConfiguration cosmosConfiguration)
+        public static CosmosCommandProviderOptions Parse(
+            CosmosCommandProviderConfiguration providerConfiguration)
         {
             // get the tenant, endpoint, and database
-            var cosmosOptions = new CosmosOptions(
-                tenantId: cosmosConfiguration.TenantId,
-                endpointUri: cosmosConfiguration.EndpointUri,
-                database: cosmosConfiguration.Database);
+            var options = new CosmosCommandProviderOptions(
+                tenantId: providerConfiguration.TenantId,
+                endpointUri: providerConfiguration.EndpointUri,
+                databaseId: providerConfiguration.DatabaseId);
 
             // group the containers by item type
-            var groups = cosmosConfiguration
+            var groups = providerConfiguration
                 .Containers
                 .GroupBy(o => o.TypeName)
                 .ToArray();
@@ -273,16 +267,16 @@ public static class CosmosExtensions
             // enumerate each group and set the container (value) for each item type (key)
             Array.ForEach(groups, group =>
             {
-                cosmosOptions._containerByTypeName[group.Key] = group.Single().Container;
+                options._containerIdsByTypeName[group.Key] = group.Single().ContainerId;
             });
 
-            return cosmosOptions;
+            return options;
         }
 
         /// <summary>
         /// Get the database.
         /// </summary>
-        public string Database => database;
+        public string DatabaseId => databaseId;
 
         /// <summary>
         /// Get the endpoint.
@@ -302,8 +296,8 @@ public static class CosmosExtensions
         public string? GetContainerId(
             string typeName)
         {
-            return _containerByTypeName.TryGetValue(typeName, out var container)
-                ? container
+            return _containerIdsByTypeName.TryGetValue(typeName, out var containerId)
+                ? containerId
                 : null;
         }
 
@@ -313,7 +307,7 @@ public static class CosmosExtensions
         /// <returns>The array of containers.</returns>
         public string[] GetContainerIds()
         {
-            return _containerByTypeName
+            return _containerIdsByTypeName
                 .Values
                 .OrderBy(c => c)
                 .ToArray();

@@ -1,21 +1,32 @@
+using Azure.Core;
 using Azure.Identity;
-using Microsoft.Azure.Cosmos;
-using Microsoft.Azure.Cosmos.Linq;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Snapshooter.NUnit;
+using Trelnex.Core.Api.CommandProviders;
+using Trelnex.Core.Api.Serilog;
+using Trelnex.Core.Data;
 
-namespace Trelnex.Core.Data.Tests.CommandProviders;
+namespace Trelnex.Core.Api.Tests.CommandProviders;
 
-[Ignore("Requires a CosmosDB instance.")]
-public class CosmosCommandProviderTests
+[Ignore("Requires a SQL server.")]
+public class SqlCommandProviderTests
 {
-    private Container _container = null!;
+    private readonly string _scope = "https://database.windows.net/.default";
+
+    private TokenCredential _tokenCredential = null!;
+    private string _connectionString = null!;
+    private string _tableName = null!;
     private ICommandProvider<ITestItem> _commandProvider = null!;
 
     [OneTimeSetUp]
-    public async Task TestFixtureSetup()
+    public void TestFixtureSetup()
     {
         // This method is called once prior to executing any of the tests in the fixture.
+
+        // create the service collection
+        var services = new ServiceCollection();
 
         // create the test configuration
         var configuration = new ConfigurationBuilder()
@@ -23,61 +34,63 @@ public class CosmosCommandProviderTests
             .AddJsonFile("appsettings.User.json", optional: true, reloadOnChange: true)
             .Build();
 
-        var providerConfiguration = configuration.GetSection("CosmosCommandProviders").Get<CosmosCommandProviderConfiguration>()!;
+        var dataSource = configuration
+            .GetSection("SqlCommandProviders:DataSource")
+            .Value;
 
-        // create a cosmos client for cleanup
-        var tokenCredential = new DefaultAzureCredential();
+        var initialCatalog = configuration
+            .GetSection("SqlCommandProviders:InitialCatalog")
+            .Value;
 
-        var cosmosClient = new CosmosClient(
-            accountEndpoint: providerConfiguration.EndpointUri,
-            tokenCredential: tokenCredential);
+        _tableName = configuration
+            .GetSection("SqlCommandProviders:Tables:0:TableName")
+            .Value!;
 
-        _container = cosmosClient.GetContainer(
-            databaseId: providerConfiguration.DatabaseId,
-            containerId: providerConfiguration.ContainerId);
+        var scsBuilder = new SqlConnectionStringBuilder()
+        {
+            DataSource = dataSource,
+            InitialCatalog = initialCatalog,
+            Encrypt = true,
+        };
+
+        _connectionString = scsBuilder.ConnectionString;
 
         // create the command provider
-        var cosmosClientOptions = new CosmosClientOptions(
-            TokenCredential: tokenCredential,
-            AccountEndpoint: providerConfiguration.EndpointUri,
-            DatabaseId: providerConfiguration.DatabaseId,
-            ContainerIds: [ providerConfiguration.ContainerId ]
-        );
+        _tokenCredential = new DefaultAzureCredential();
 
-        var keyResolverOptions = new KeyResolverOptions(
-            TokenCredential: tokenCredential);
+        var bootstrapLogger = services.AddSerilog(
+            configuration,
+            "Trelnex.Integration.Tests");
 
-        var factory = await CosmosCommandProviderFactory.Create(
-            cosmosClientOptions,
-            keyResolverOptions);
+        services.AddSqlCommandProviders(
+            configuration,
+            bootstrapLogger,
+            options => options.Add<ITestItem, TestItem>(
+                typeName: "test-item",
+                validator: TestItem.Validator,
+                commandOperations: CommandOperations.All));
 
-        _commandProvider = factory.Create<ITestItem, TestItem>(
-            providerConfiguration.ContainerId,
-            "test-item",
-            TestItem.Validator,
-            CommandOperations.All);
+        var serviceProvider = services.BuildServiceProvider();
+
+        // get the command provider
+        _commandProvider = serviceProvider.GetRequiredService<ICommandProvider<ITestItem>>();
     }
 
     [TearDown]
-    public async Task Cleanup()
+    public void Cleanup()
     {
-        // This method is called after each test case is run.
+        // This method is called after each test has run.
+        using var sqlConnection = new SqlConnection(_connectionString);
 
-        var feedIterator = _container
-            .GetItemLinqQueryable<CosmosItem>()
-            .ToFeedIterator();
+        var tokenRequestContext = new TokenRequestContext([ _scope ]);
+        sqlConnection.AccessToken = _tokenCredential.GetToken(tokenRequestContext, default).Token;
 
-        while (feedIterator.HasMoreResults)
-        {
-            var feedResponse = await feedIterator.ReadNextAsync();
+        sqlConnection.Open();
 
-            foreach (var item in feedResponse)
-            {
-                await _container.DeleteItemAsync<CosmosItem>(
-                    id: item.id,
-                    partitionKey: new PartitionKey(item.partitionKey));
-            }
-        }
+        var cmdText = $"DELETE FROM [{_tableName}-events]; DELETE FROM [{_tableName}];";
+        var sqlCommand = new SqlCommand(cmdText, sqlConnection);
+
+        sqlCommand.ExecuteNonQuery();
     }
 
     [Test]
@@ -848,14 +861,6 @@ public class CosmosCommandProviderTests
                 .IgnoreField("**.UpdatedDate")
                 .IgnoreField("**.ETag"));
     }
-
-    /// <summary>
-    /// Represents the configuration properties for Cosmos command providers.
-    /// </summary>
-    private record CosmosCommandProviderConfiguration(
-        string EndpointUri,
-        string DatabaseId,
-        string ContainerId);
 
     private record CosmosItem(
         string id,

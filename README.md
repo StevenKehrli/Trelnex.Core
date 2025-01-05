@@ -412,7 +412,7 @@ See [Command Providers Dependency Injection](#command-providers-dependency-injec
 `appsettings.json` specifies the configuration of a `CosmosCommandProvider`.
 
 ```
-  "CosmosDB": {
+  "CosmosCommandProviders": {
     "EndpointUri": "FROM_ENV",
     "Database": "trelnex-core-data-tests",
     "Containers": [
@@ -441,7 +441,7 @@ See [Command Providers Dependency Injection](#command-providers-dependency-injec
 `appsettings.json` specifies the configuration of a `SqlCommandProvider`.
 
 ```
-  "SQL": {
+  "SqlCommandProviders": {
     "DataSource": "FROM_ENV",
     "InitialCatalog": "trelnex-core-data-tests",
     "Tables": [

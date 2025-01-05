@@ -164,9 +164,9 @@ internal abstract partial class CommandProvider<TInterface, TItem>
         return SaveCommand<TInterface, TItem>.Create(
             item: item,
             isReadOnly: false,
+            validateAsyncDelegate: ValidateAsync,
             saveAction: SaveAction.CREATED,
-            saveAsyncDelegate: CreateItemAsync,
-            validateAsyncDelegate: ValidateAsync);
+            saveAsyncDelegate: CreateItemAsync);
     }
 
     /// <summary>
@@ -194,15 +194,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
             return null;
         }
 
-        item.DeletedDate = DateTime.UtcNow;
-        item.IsDeleted = true;
-
-        return SaveCommand<TInterface, TItem>.Create(
-            item: item,
-            isReadOnly: true,
-            saveAction: SaveAction.DELETED,
-            saveAsyncDelegate: UpdateItemAsync,
-            validateAsyncDelegate: ValidateAsync);
+        return CreateDeleteCommand(item);
     }
 
     /// <summary>
@@ -224,7 +216,9 @@ internal abstract partial class CommandProvider<TInterface, TItem>
             return null;
         }
 
-        return CreateReadResult(item);
+        return ReadResult<TInterface, TItem>.Create(
+            item: item,
+            validateAsyncDelegate: ValidateAsync);
     }
 
     /// <summary>
@@ -252,14 +246,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
             return null;
         }
 
-        item.UpdatedDate = DateTime.UtcNow;
-
-        return SaveCommand<TInterface, TItem>.Create(
-            item: item,
-            isReadOnly: false,
-            saveAction: SaveAction.UPDATED,
-            saveAsyncDelegate: UpdateItemAsync,
-            validateAsyncDelegate: ValidateAsync);
+        return CreateUpdateCommand(item);
     }
 
     /// <summary>
@@ -269,20 +256,15 @@ internal abstract partial class CommandProvider<TInterface, TItem>
     public IQueryCommand<TInterface> Query()
     {
         // create the query command
-        return CreateQueryCommand(_expressionConverter);
-    }
-
-    /// <summary>
-    /// Create a <see cref="IReadResult{TInterface}"/> over the item.
-    /// </summary>
-    /// <param name="item">The item to create a proxy.</param>
-    /// <returns>The <see cref="IReadResult{TInterface}"/>.</returns>
-    protected IReadResult<TInterface> CreateReadResult(
-        TItem item)
-    {
-        return ReadResult<TInterface, TItem>.Create(
-            item,
-            ValidateAsync);
+        return CreateQueryCommand(
+            expressionConverter: _expressionConverter,
+            convertToQueryResult: item => {
+                return QueryResult<TInterface, TItem>.Create(
+                    item: item,
+                    validateAsyncDelegate: ValidateAsync,
+                    convertToDeleteCommand: CreateDeleteCommand,
+                    convertToUpdateCommand: CreateUpdateCommand);
+            });
     }
 
     /// <summary>
@@ -322,6 +304,51 @@ internal abstract partial class CommandProvider<TInterface, TItem>
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Create an instance of the <see cref="IQueryCommand{Interface}"/>.
+    /// </summary>
+    /// <param name="expressionConverter">The <see cref="ExpressionConverter{TInterface,TItem}"/> to convert an expression using a TInterface to an expression using a TItem.</param>
+    /// <param name="convertToQueryResult">The method to convert a TItem to a <see cref="IQueryResult{TInterface}"/>.</param>
+    /// <returns>The <see cref="IQueryCommand{Interface}"/>.</returns>
+    protected abstract IQueryCommand<TInterface> CreateQueryCommand(
+        ExpressionConverter<TInterface, TItem> expressionConverter,
+        Func<TItem, IQueryResult<TInterface>> convertToQueryResult);
+
+    /// <summary>
+    /// Create an <see cref="ISaveCommand{TInterface}"/> to delete the item.
+    /// </summary>
+    /// <returns>An <see cref="ISaveCommand{TInterface}"/> with the item to delete.</returns>
+    private ISaveCommand<TInterface> CreateDeleteCommand(
+        TItem item)
+    {
+        item.DeletedDate = DateTime.UtcNow;
+        item.IsDeleted = true;
+
+        return SaveCommand<TInterface, TItem>.Create(
+            item: item,
+            isReadOnly: true,
+            validateAsyncDelegate: ValidateAsync,
+            saveAction: SaveAction.DELETED,
+            saveAsyncDelegate: UpdateItemAsync);
+    }
+
+    /// <summary>
+    /// Create an <see cref="ISaveCommand{TInterface}"/> to update the item.
+    /// </summary>
+    /// <returns>An <see cref="ISaveCommand{TInterface}"/> with the item to delete.</returns>
+    private ISaveCommand<TInterface> CreateUpdateCommand(
+        TItem item)
+    {
+        item.UpdatedDate = DateTime.UtcNow;
+
+        return SaveCommand<TInterface, TItem>.Create(
+            item: item,
+            isReadOnly: false,
+            validateAsyncDelegate: ValidateAsync,
+            saveAction: SaveAction.UPDATED,
+            saveAsyncDelegate: UpdateItemAsync);
+    }
+
+    /// <summary>
     /// Validate the item using the base item validator and the item validation.
     /// </summary>
     /// <param name="item">The item to validate.</param>
@@ -337,15 +364,6 @@ internal abstract partial class CommandProvider<TInterface, TItem>
         // validate the item
         return await compositeValidator.ValidateAsync(item, cancellationToken);
     }
-
-    /// <summary>
-    /// Create an instance of the <see cref="IQueryCommand{Interface}"/>.
-    /// </summary>
-    /// <param name="expressionConverter">The <see cref="ExpressionConverter{TInterface,TItem}"/> to convert an expression using a TInterface to an expression using a TItem.</param>
-    /// <returns>The <see cref="IQueryCommand{Interface}"/>.</returns>
-    protected abstract IQueryCommand<TInterface> CreateQueryCommand(
-        ExpressionConverter<TInterface, TItem> expressionConverter);
-
 
     [GeneratedRegex("^[a-z]+[a-z-]*[a-z]+$")]
     private static partial Regex TypeRulesRegex();
