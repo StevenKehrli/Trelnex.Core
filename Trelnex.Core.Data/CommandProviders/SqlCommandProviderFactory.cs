@@ -14,7 +14,7 @@ namespace Trelnex.Core.Data;
 /// <summary>
 /// A builder for creating an instance of the <see cref="SqlCommandProvider"/>.
 /// </summary>
-public class SqlCommandProviderFactory
+public class SqlCommandProviderFactory : ISqlCommandProviderStatus
 {
     private readonly JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions
     {
@@ -23,12 +23,12 @@ public class SqlCommandProviderFactory
 
     private readonly string _connectionString;
     private readonly Action<DbConnection> _connectionInterceptor;
-    private readonly Func<SqlCommandProviderFactoryStatus> _getStatus;
+    private readonly Func<SqlCommandProviderStatus> _getStatus;
 
     private SqlCommandProviderFactory(
         string connectionString,
         Action<DbConnection> connectionInterceptor,
-        Func<SqlCommandProviderFactoryStatus> getStatus)
+        Func<SqlCommandProviderStatus> getStatus)
     {
         _connectionString = connectionString;
         _connectionInterceptor = connectionInterceptor;
@@ -68,7 +68,7 @@ public class SqlCommandProviderFactory
             .UseSqlServer(scsBuilder.ConnectionString)
             .UseBeforeConnectionOpened(connectionInterceptor);
 
-        SqlCommandProviderFactoryStatus getStatus()
+        SqlCommandProviderStatus getStatus()
         {
             try
             {
@@ -106,7 +106,7 @@ public class SqlCommandProviderFactory
                     }
                 }
 
-                return new SqlCommandProviderFactoryStatus(
+                return new SqlCommandProviderStatus(
                     DataSource: sqlClientOptions.DataSource,
                     InitialCatalog: sqlClientOptions.InitialCatalog,
                     TableNames: sqlClientOptions.TableNames,
@@ -116,7 +116,7 @@ public class SqlCommandProviderFactory
             }
             catch (Exception ex)
             {
-                return new SqlCommandProviderFactoryStatus(
+                return new SqlCommandProviderStatus(
                     DataSource: sqlClientOptions.DataSource,
                     InitialCatalog: sqlClientOptions.InitialCatalog,
                     TableNames: sqlClientOptions.TableNames,
@@ -205,7 +205,7 @@ public class SqlCommandProviderFactory
             commandOperations);
     }
 
-    public SqlCommandProviderFactoryStatus GetStatus() => _getStatus();
+    public SqlCommandProviderStatus GetStatus() => _getStatus();
 
     private static string GetEventsTableName(string tableName) => $"{tableName}-events";
 }
@@ -216,11 +216,3 @@ public record SqlClientOptions(
     string DataSource,
     string InitialCatalog,
     string[] TableNames);
-
-public record SqlCommandProviderFactoryStatus(
-    string DataSource,
-    string InitialCatalog,
-    string[] TableNames,
-    bool IsHealthy,
-    string[]? Version,
-    string? Error);

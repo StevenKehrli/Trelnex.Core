@@ -13,16 +13,16 @@ namespace Trelnex.Core.Data;
 /// <summary>
 /// A builder for creating an instance of the <see cref="CosmosCommandProvider"/>.
 /// </summary>
-public class CosmosCommandProviderFactory
+public class CosmosCommandProviderFactory : ICosmosCommandProviderStatus
 {
     private readonly CosmosClient _cosmosClient;
     private readonly string _databaseId;
-    private readonly Func<CosmosCommandProviderFactoryStatus> _getStatus;
+    private readonly Func<CosmosCommandProviderStatus> _getStatus;
 
     private CosmosCommandProviderFactory(
         CosmosClient cosmosClient,
         string databaseId,
-        Func<CosmosCommandProviderFactoryStatus> getStatus)
+        Func<CosmosCommandProviderStatus> getStatus)
     {
         _cosmosClient = cosmosClient;
         _databaseId = databaseId;
@@ -67,7 +67,7 @@ public class CosmosCommandProviderFactory
             new KeyResolver(keyResolverOptions.TokenCredential),
             KeyEncryptionKeyResolverName.AzureKeyVault);
 
-        CosmosCommandProviderFactoryStatus getStatus()
+        CosmosCommandProviderStatus getStatus()
         {
             try
             {
@@ -115,7 +115,7 @@ public class CosmosCommandProviderFactory
                     }
                 }
 
-                return new CosmosCommandProviderFactoryStatus(
+                return new CosmosCommandProviderStatus(
                     AccountEndpoint: cosmosClientOptions.AccountEndpoint,
                     DatabaseId: cosmosClientOptions.DatabaseId,
                     ContainerIds: cosmosClientOptions.ContainerIds,
@@ -124,7 +124,7 @@ public class CosmosCommandProviderFactory
             }
             catch (Exception ex)
             {
-                return new CosmosCommandProviderFactoryStatus(
+                return new CosmosCommandProviderStatus(
                     cosmosClientOptions.AccountEndpoint,
                     cosmosClientOptions.DatabaseId,
                     cosmosClientOptions.ContainerIds,
@@ -174,7 +174,7 @@ public class CosmosCommandProviderFactory
             commandOperations);
     }
 
-    public CosmosCommandProviderFactoryStatus GetStatus() => _getStatus();
+    public CosmosCommandProviderStatus GetStatus() => _getStatus();
 }
 
 public record CosmosClientOptions(
@@ -185,10 +185,3 @@ public record CosmosClientOptions(
 
 public record KeyResolverOptions(
     TokenCredential TokenCredential);
-
-public record CosmosCommandProviderFactoryStatus(
-    string AccountEndpoint,
-    string DatabaseId,
-    string[] ContainerIds,
-    bool IsHealthy,
-    string? Error);
