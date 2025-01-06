@@ -12,10 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Deleted
 
+## [Trelnex.Core.Api:4.1.0] - 2025-01-05
+
+### Added
+
+- Register `CosmosCommandProviderHealthCheck` as health check for the underlying CosmosDB.
+- Register `SqlCommandProviderHealthCheck` as health check for the underlying SQL connection.
+
 ## [Trelnex.Core.Data:4.1.0] - 2025-01-05
 
 ### Added
 
+- Added `CosmosCommandProviderFactory` `GetStatus` method as health check for the underlying CosmosDB.
 - Added `SqlCommandProviderFactory` `GetStatus` method as health check for the underlying SQL connection.
 
 ## [Trelnex.Core.Api:4.0.0] - 2025-01-04

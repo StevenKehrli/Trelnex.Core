@@ -37,14 +37,17 @@ public static class SqlCommandProvidersExtensions
         // create our factory
         var sqlClientOptions = GetSqlClientOptions(bootstrapLogger, options);
 
-        var factoryTask = SqlCommandProviderFactory.Create(
-            sqlClientOptions);
+        var factory = SqlCommandProviderFactory.Create(
+            sqlClientOptions).Result;
+
+        // inject the factory as the status interface
+        services.AddSingleton<ISqlCommandProviderStatus>(factory);
 
         // create the command providers and inject
         var commandProviderOptions = new CommandProviderOptions(
             services: services,
             bootstrapLogger: bootstrapLogger,
-            factory: factoryTask.Result!,
+            factory: factory,
             options: options);
 
         configureCommandProviders(commandProviderOptions);
@@ -82,7 +85,8 @@ public static class SqlCommandProvidersExtensions
             TokenCredential: tokenCredential,
             Scope: scope,
             DataSource: options.DataSource,
-            InitialCatalog: options.InitialCatalog
+            InitialCatalog: options.InitialCatalog,
+            TableNames: options.GetTableNames()
         );
     }
 

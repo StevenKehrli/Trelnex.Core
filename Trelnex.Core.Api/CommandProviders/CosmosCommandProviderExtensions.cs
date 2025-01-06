@@ -38,15 +38,18 @@ public static class CosmosCommandProvidersExtensions
         var cosmosClientOptions = GetCosmosClientOptions(bootstrapLogger, options);
         var keyResolverOptions = GetKeyResolverOptions(bootstrapLogger, options);
 
-        var factoryTask = CosmosCommandProviderFactory.Create(
+        var factory = CosmosCommandProviderFactory.Create(
             cosmosClientOptions,
-            keyResolverOptions);
+            keyResolverOptions).Result;
+
+        // inject the factory as the status interface
+        services.AddSingleton<ICosmosCommandProviderStatus>(factory);
 
         // create the command providers and inject
         var commandProviderOptions = new CommandProviderOptions(
             services: services,
             bootstrapLogger: bootstrapLogger,
-            factory: factoryTask.Result!,
+            factory: factory,
             options: options);
 
         configureCommandProviders(commandProviderOptions);
