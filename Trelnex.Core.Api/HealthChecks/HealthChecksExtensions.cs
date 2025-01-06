@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Prometheus;
+using Trelnex.Core.Data;
 
 namespace Trelnex.Core.Api.HealthChecks;
 
@@ -22,17 +23,38 @@ public static class HealthChecksExtensions
         this IServiceCollection services,
         Action<IHealthChecksBuilder>? addHealthChecks)
     {
-        // add health checks and expose to prometheus
-        // https://github.com/prometheus-net/prometheus-net?tab=readme-ov-file#aspnet-core-health-check-status-metrics
-
+        // add health checks
         var builder = services.AddHealthChecks();
 
         // add an always healthy
         builder.AddCheck("Default", () => HealthCheckResult.Healthy());
 
+        // our access token health checks
+        builder.AddAccessTokenHealthChecks();
+
+        // check if ICosmosCommandProviderStatus is added
+        if (services.Any(x => x.ServiceType == typeof(ICosmosCommandProviderStatus)))
+        {
+            // add its health check
+            builder.AddCheck<CosmosCommandProviderHealthCheck>(
+                name: nameof(CosmosCommandProviderHealthCheck),
+                failureStatus: HealthStatus.Unhealthy);
+        }
+
+        // check if ISqlCommandProviderStatus is added
+        if (services.Any(x => x.ServiceType == typeof(ISqlCommandProviderStatus)))
+        {
+            // add its health check
+            builder.AddCheck<SqlCommandProviderHealthCheck>(
+                name: nameof(SqlCommandProviderHealthCheck),
+                failureStatus: HealthStatus.Unhealthy);
+        }
+
         // invoke callback to caller to add health checks
         addHealthChecks?.Invoke(builder);
 
+        // expose to prometheus
+        // https://github.com/prometheus-net/prometheus-net?tab=readme-ov-file#aspnet-core-health-check-status-metrics
         builder.ForwardToPrometheus();
 
         return services;

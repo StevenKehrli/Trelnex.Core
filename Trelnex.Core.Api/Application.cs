@@ -81,9 +81,6 @@ public static class Application
         // add the health checks
         builder.Services.AddHealthChecks(healthChecksBuilder =>
         {
-            // our access token health checks
-            healthChecksBuilder.AddAccessTokenHealthChecks();
-
             // the calling application health checks
             addHealthChecks?.Invoke(healthChecksBuilder, builder.Configuration);
         });
