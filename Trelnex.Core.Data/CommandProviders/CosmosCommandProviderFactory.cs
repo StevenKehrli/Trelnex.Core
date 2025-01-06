@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Azure.Core;
@@ -16,13 +17,16 @@ public class CosmosCommandProviderFactory
 {
     private readonly CosmosClient _cosmosClient;
     private readonly string _databaseId;
+    private readonly Func<CosmosCommandProviderFactoryStatus> _getStatus;
 
     private CosmosCommandProviderFactory(
         CosmosClient cosmosClient,
-        string databaseId)
+        string databaseId,
+        Func<CosmosCommandProviderFactoryStatus> getStatus)
     {
         _cosmosClient = cosmosClient;
         _databaseId = databaseId;
+        _getStatus = getStatus;
     }
 
     /// <summary>
@@ -63,9 +67,82 @@ public class CosmosCommandProviderFactory
             new KeyResolver(keyResolverOptions.TokenCredential),
             KeyEncryptionKeyResolverName.AzureKeyVault);
 
+        CosmosCommandProviderFactoryStatus getStatus()
+        {
+            try
+            {
+                // get the database
+                var database = cosmosClient.GetDatabase(cosmosClientOptions.DatabaseId);
+
+                // get the containers
+                ContainerProperties[] getContainers()
+                {
+                    var containers = new List<ContainerProperties>();
+
+                    var feedIterator = database.GetContainerQueryIterator<ContainerProperties>();
+
+                    while (feedIterator.HasMoreResults)
+                    {
+                        var feedResponse = feedIterator.ReadNextAsync().Result;
+
+                        foreach (var container in feedResponse)
+                        {
+                            containers.Add(container);
+                        }
+                    }
+
+                    return containers.ToArray();
+                }
+
+                var containers = getContainers();
+
+                // get any containers not in the database
+                var missingContainerIds = new List<string>();
+                foreach (var containerId in cosmosClientOptions.ContainerIds.OrderBy(containerId => containerId))
+                {
+                    if (containers.Any(containerProperties => containerProperties.Id == containerId) is false)
+                    {
+                        missingContainerIds.Add(containerId);
+                    }
+
+                    try
+                    {
+                        var container = database.GetContainer(containerId);
+                    }
+                    catch
+                    {
+                        missingContainerIds.Add(containerId);
+                    }
+                }
+
+                return new CosmosCommandProviderFactoryStatus(
+                    AccountEndpoint: cosmosClientOptions.AccountEndpoint,
+                    DatabaseId: cosmosClientOptions.DatabaseId,
+                    ContainerIds: cosmosClientOptions.ContainerIds,
+                    IsHealthy: 0 == missingContainerIds.Count,
+                    Error: 0 == missingContainerIds.Count ? null : $"Missing ContainerIds: {string.Join(", ", missingContainerIds)}");
+            }
+            catch (Exception ex)
+            {
+                return new CosmosCommandProviderFactoryStatus(
+                    cosmosClientOptions.AccountEndpoint,
+                    cosmosClientOptions.DatabaseId,
+                    cosmosClientOptions.ContainerIds,
+                    false,
+                    ex.Message);
+            }
+        }
+
+        var status = getStatus();
+        if (status.IsHealthy is false)
+        {
+            throw new CommandException(HttpStatusCode.ServiceUnavailable, status.Error);
+        }
+
         return new CosmosCommandProviderFactory(
             cosmosClient,
-            cosmosClientOptions.DatabaseId);
+            cosmosClientOptions.DatabaseId,
+            getStatus);
     }
 
     /// <summary>
@@ -96,6 +173,8 @@ public class CosmosCommandProviderFactory
             validator,
             commandOperations);
     }
+
+    public CosmosCommandProviderFactoryStatus GetStatus() => _getStatus();
 }
 
 public record CosmosClientOptions(
@@ -106,3 +185,10 @@ public record CosmosClientOptions(
 
 public record KeyResolverOptions(
     TokenCredential TokenCredential);
+
+public record CosmosCommandProviderFactoryStatus(
+    string AccountEndpoint,
+    string DatabaseId,
+    string[] ContainerIds,
+    bool IsHealthy,
+    string? Error);

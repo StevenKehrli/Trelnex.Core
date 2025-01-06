@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Azure.Core;
@@ -25,59 +26,13 @@ public class SqlCommandProviderFactory
     private readonly Func<SqlCommandProviderFactoryStatus> _getStatus;
 
     private SqlCommandProviderFactory(
-        string dataSource,
-        string initialCatalog,
-        Action<DbConnection> connectionInterceptor)
+        string connectionString,
+        Action<DbConnection> connectionInterceptor,
+        Func<SqlCommandProviderFactoryStatus> getStatus)
     {
-        // build the connection string
-        var scsBuilder = new SqlConnectionStringBuilder()
-        {
-            DataSource = dataSource,
-            InitialCatalog = initialCatalog,
-            Encrypt = true,
-        };
-
-        _connectionString = scsBuilder.ConnectionString;
+        _connectionString = connectionString;
         _connectionInterceptor = connectionInterceptor;
-
-        // build the health check
-        var dataOptions = new DataOptions()
-            .UseSqlServer(_connectionString)
-            .UseBeforeConnectionOpened(connectionInterceptor);
-
-        _getStatus = () =>
-        {
-            try
-            {
-                using var dataConnection = new DataConnection(dataOptions);
-
-                // get the multi-line version string
-                var version = dataConnection.Query<string>("SELECT @@VERSION");
-
-                // split the version into each line
-                char[] delimiterChars = [ '\r', '\n', '\t' ];
-
-                var versionArray = version
-                    .FirstOrDefault()?
-                    .Split(delimiterChars, StringSplitOptions.RemoveEmptyEntries);
-
-                return new SqlCommandProviderFactoryStatus(
-                    DataSource: dataSource,
-                    InitialCatalog: initialCatalog,
-                    IsHealthy: true,
-                    Version: versionArray,
-                    Error: null);
-            }
-            catch (Exception ex)
-            {
-                return new SqlCommandProviderFactoryStatus(
-                    DataSource: dataSource,
-                    InitialCatalog: initialCatalog,
-                    IsHealthy: false,
-                    Version: null,
-                    Error: ex.Message);
-            }
-        };
+        _getStatus = getStatus;
     }
 
     /// <summary>
@@ -88,6 +43,14 @@ public class SqlCommandProviderFactory
     public static async Task<SqlCommandProviderFactory> Create(
         SqlClientOptions sqlClientOptions)
     {
+        // build the data options
+        var scsBuilder = new SqlConnectionStringBuilder()
+        {
+            DataSource = sqlClientOptions.DataSource,
+            InitialCatalog = sqlClientOptions.InitialCatalog,
+            Encrypt = true,
+        };
+
         // build the connection interceptor
         var connectionInterceptor = new Action<DbConnection>(dbConnection =>
         {
@@ -100,14 +63,81 @@ public class SqlCommandProviderFactory
             sqlConnection.AccessToken = accessToken;
         });
 
-        // build the factory
-        var factory = new SqlCommandProviderFactory(
-            dataSource: sqlClientOptions.DataSource,
-            initialCatalog: sqlClientOptions.InitialCatalog,
-            connectionInterceptor);
+        // build the health check
+        var dataOptions = new DataOptions()
+            .UseSqlServer(scsBuilder.ConnectionString)
+            .UseBeforeConnectionOpened(connectionInterceptor);
+
+        SqlCommandProviderFactoryStatus getStatus()
+        {
+            try
+            {
+                using var dataConnection = new DataConnection(dataOptions);
+
+                // get the multi-line version string
+                var version = dataConnection.Query<string>("SELECT @@VERSION");
+
+                // split the version into each line
+                char[] delimiterChars = ['\r', '\n', '\t'];
+
+                var versionArray = version
+                    .FirstOrDefault()?
+                    .Split(delimiterChars, StringSplitOptions.RemoveEmptyEntries);
+
+                // get the database schema
+                var schemaProvider = dataConnection.DataProvider.GetSchemaProvider();
+                var databaseSchema = schemaProvider.GetSchema(dataConnection);
+
+                // get any tables not in the database schema
+                var missingTableNames = new List<string>();
+                foreach (var tableName in sqlClientOptions.TableNames.OrderBy(tableName => tableName))
+                {
+                    // table name
+                    if (databaseSchema.Tables.Any(tableSchema => tableSchema.TableName == tableName) is false)
+                    {
+                        missingTableNames.Add(tableName);
+                    }
+
+                    // events table name
+                    var eventsTableName = GetEventsTableName(tableName);
+                    if (databaseSchema.Tables.Any(tableSchema => tableSchema.TableName == eventsTableName) is false)
+                    {
+                        missingTableNames.Add(eventsTableName);
+                    }
+                }
+
+                return new SqlCommandProviderFactoryStatus(
+                    DataSource: sqlClientOptions.DataSource,
+                    InitialCatalog: sqlClientOptions.InitialCatalog,
+                    TableNames: sqlClientOptions.TableNames,
+                    IsHealthy: 0 == missingTableNames.Count,
+                    Version: versionArray,
+                    Error: 0 == missingTableNames.Count ? null : $"Missing Tables: {string.Join(", ", missingTableNames)}");
+            }
+            catch (Exception ex)
+            {
+                return new SqlCommandProviderFactoryStatus(
+                    DataSource: sqlClientOptions.DataSource,
+                    InitialCatalog: sqlClientOptions.InitialCatalog,
+                    TableNames: sqlClientOptions.TableNames,
+                    IsHealthy: false,
+                    Version: null,
+                    Error: ex.Message);
+            }
+        }
 
         // warm-up the connection
-        var status = factory.GetStatus();
+        var status = getStatus();
+        if (status.IsHealthy is false)
+        {
+            throw new CommandException(HttpStatusCode.ServiceUnavailable, status.Error);
+        }
+
+        // build the factory
+        var factory = new SqlCommandProviderFactory(
+            scsBuilder.ConnectionString,
+            connectionInterceptor,
+            getStatus);
 
         return await Task.FromResult(factory);
     }
@@ -148,8 +178,9 @@ public class SqlCommandProviderFactory
             .Property(e => e.PartitionKey).IsPrimaryKey();
 
         // map the event to its table ("<tableName>-events")
+        var eventsTableName = GetEventsTableName(tableName);
         fmBuilder.Entity<ItemEvent<TItem>>()
-            .HasTableName($"{tableName}-events")
+            .HasTableName(eventsTableName)
             .Property(e => e.Id).IsPrimaryKey()
             .Property(e => e.PartitionKey).IsPrimaryKey()
             .Property(e => e.Changes).HasConversion(
@@ -175,17 +206,21 @@ public class SqlCommandProviderFactory
     }
 
     public SqlCommandProviderFactoryStatus GetStatus() => _getStatus();
+
+    private static string GetEventsTableName(string tableName) => $"{tableName}-events";
 }
 
 public record SqlClientOptions(
     TokenCredential TokenCredential,
     string Scope,
     string DataSource,
-    string InitialCatalog);
+    string InitialCatalog,
+    string[] TableNames);
 
 public record SqlCommandProviderFactoryStatus(
     string DataSource,
     string InitialCatalog,
+    string[] TableNames,
     bool IsHealthy,
     string[]? Version,
     string? Error);

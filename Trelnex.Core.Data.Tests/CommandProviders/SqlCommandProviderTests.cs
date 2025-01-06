@@ -47,7 +47,8 @@ public class SqlCommandProviderTests
             TokenCredential: _tokenCredential,
             Scope: _scope,
             DataSource: providerConfiguration.DataSource,
-            InitialCatalog: providerConfiguration.InitialCatalog
+            InitialCatalog: providerConfiguration.InitialCatalog,
+            TableNames: [ providerConfiguration.TableName ]
         );
 
         var factory = await SqlCommandProviderFactory.Create(
