@@ -413,12 +413,13 @@ See [Command Providers Dependency Injection](#command-providers-dependency-injec
 
 ```
   "CosmosCommandProviders": {
+    "TenantId": "FROM_ENV",
     "EndpointUri": "FROM_ENV",
-    "Database": "trelnex-core-data-tests",
+    "DatabaseId": "trelnex-core-data-tests",
     "Containers": [
       {
         "TypeName": "test-item",
-        "Container": "test-items"
+        "ContainerId": "test-items"
       }
     ]
   }
