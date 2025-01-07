@@ -7,14 +7,15 @@ public class PropertyChangesTests
     private readonly string _typeName = "test-item";
 
     [Test]
-    public void PropertyChanges_IdAndMessage()
+    public async Task PropertyChanges_IdAndMessage()
     {
         var id = Guid.NewGuid().ToString();
         var partitionKey = Guid.NewGuid().ToString();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName);
 
         var createCommand = commandProvider.Create(
@@ -34,14 +35,15 @@ public class PropertyChangesTests
     }
 
     [Test]
-    public void PropertyChanges_NoChange()
+    public async Task PropertyChanges_NoChange()
     {
         var id = Guid.NewGuid().ToString();
         var partitionKey = Guid.NewGuid().ToString();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName);
 
         var createCommand = commandProvider.Create(
@@ -61,14 +63,15 @@ public class PropertyChangesTests
     }
 
     [Test]
-    public void PropertyChanges_SetAndReset()
+    public async Task PropertyChanges_SetAndReset()
     {
         var id = Guid.NewGuid().ToString();
         var partitionKey = Guid.NewGuid().ToString();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName);
 
         var createCommand = commandProvider.Create(

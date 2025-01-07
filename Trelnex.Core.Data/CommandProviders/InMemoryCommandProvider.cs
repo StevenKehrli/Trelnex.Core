@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -5,31 +6,6 @@ using System.Text.Json.Serialization;
 using FluentValidation;
 
 namespace Trelnex.Core.Data;
-
-public static class InMemoryCommandProvider
-{
-    /// <summary>
-    /// Create an instance of the <see cref="InMemoryCommandProvider"/>.
-    /// </summary>
-    /// <param name="typeName">The type name of the item - used for <see cref="BaseItem.TypeName"/>.</param>
-    /// <param name="validator">The fluent validator for the item</param>
-    /// <param name="commandOperations">The value indicating if update and delete commands are allowed. By default, update is allowed; delete is not allowed.</param>
-    /// <typeparam name="TInterface">The specified interface type></typeparam>
-    /// <typeparam name="TItem">The specified item type that implements the specified interface type</typeparam>
-    /// <returns>The <see cref="InMemoryCommandProvider"/>.</returns>
-    public static ICommandProvider<TInterface> Create<TInterface, TItem>(
-        string typeName,
-        AbstractValidator<TItem>? validator = null,
-        CommandOperations? commandOperations = null)
-        where TInterface : class, IBaseItem
-        where TItem : BaseItem, TInterface, new()
-    {
-        return new InMemoryCommandProvider<TInterface, TItem>(
-            typeName,
-            validator,
-            commandOperations);
-    }
-}
 
 /// <summary>
 /// An implementation of <see cref="ICommandProvider{TInterface, TItem}"/>.
@@ -54,12 +30,12 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     /// <summary>
     /// The backing store of items
     /// </summary>
-    private readonly Dictionary<string, TItem> _items = [];
+    private readonly ConcurrentDictionary<string, TItem> _items = [];
 
     /// <summary>
     /// The backing store of events
     /// </summary>
-    private readonly List<ItemEvent<TItem>> _events = [];
+    private readonly ConcurrentQueue<ItemEvent<TItem>> _events = [];
 
     /// <summary>
     /// The json serializer options
@@ -99,7 +75,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         var processedItemEvent = Process(itemEvent);
 
         // add to the backing store
-        _events.Add(processedItemEvent);
+        _events.Enqueue(processedItemEvent);
 
 
 
@@ -176,7 +152,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         var processedItemEvent = Process(itemEvent);
 
         // add to the backing store
-        _events.Add(processedItemEvent);
+        _events.Enqueue(processedItemEvent);
 
 
 

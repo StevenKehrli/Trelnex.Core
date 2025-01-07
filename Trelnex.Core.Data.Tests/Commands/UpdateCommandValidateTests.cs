@@ -8,7 +8,7 @@ public class UpdateCommandValidateTests
     private readonly string _typeName = "test-item";
 
     [Test]
-    public void UpdateCommandValidate_SaveAsync_PrivateMessage()
+    public async Task UpdateCommandValidate_SaveAsync_PrivateMessage()
     {
         var validator = new InlineValidator<TestItem>();
         validator.RuleFor(k => k.PrivateMessage).NotEmpty();
@@ -19,8 +19,9 @@ public class UpdateCommandValidateTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 validator: validator);
 
@@ -47,7 +48,7 @@ public class UpdateCommandValidateTests
     }
 
     [Test]
-    public void UpdateCommandValidate_SaveAsync_PrivateMessageTwoNullErrors()
+    public async Task UpdateCommandValidate_SaveAsync_PrivateMessageTwoNullErrors()
     {
         var validator = new InlineValidator<TestItem>();
         validator.RuleFor(k => k.PrivateMessage).NotNull().WithMessage("NotNull #1");
@@ -59,8 +60,9 @@ public class UpdateCommandValidateTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 validator: validator);
 
@@ -87,7 +89,7 @@ public class UpdateCommandValidateTests
     }
 
     [Test]
-    public void UpdateCommandValidate_SaveAsync_PublicAndPrivateMessage()
+    public async Task UpdateCommandValidate_SaveAsync_PublicAndPrivateMessage()
     {
         var validator = new InlineValidator<TestItem>();
         validator.RuleFor(k => k.PublicMessage).NotEmpty();
@@ -99,8 +101,9 @@ public class UpdateCommandValidateTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 validator: validator);
 
@@ -125,7 +128,7 @@ public class UpdateCommandValidateTests
     }
 
     [Test]
-    public void UpdateCommandValidate_SaveAsync_PublicMessage()
+    public async Task UpdateCommandValidate_SaveAsync_PublicMessage()
     {
         var validator = new InlineValidator<TestItem>();
         validator.RuleFor(k => k.PublicMessage).NotEmpty();
@@ -136,8 +139,9 @@ public class UpdateCommandValidateTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 validator: validator);
 
@@ -164,7 +168,7 @@ public class UpdateCommandValidateTests
     }
 
     [Test]
-    public void UpdateCommandValidate_SaveAsync_PublicMessageTwoEmptyErrors()
+    public async Task UpdateCommandValidate_SaveAsync_PublicMessageTwoEmptyErrors()
     {
         var validator = new InlineValidator<TestItem>();
         validator.RuleFor(k => k.PublicMessage).NotEmpty().WithMessage("NotEmpty #1");
@@ -176,8 +180,9 @@ public class UpdateCommandValidateTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 validator: validator);
 
@@ -216,8 +221,9 @@ public class UpdateCommandValidateTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 validator: validator);
 
@@ -260,8 +266,9 @@ public class UpdateCommandValidateTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 validator: validator);
 
@@ -304,8 +311,9 @@ public class UpdateCommandValidateTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 validator: validator);
 
@@ -348,8 +356,9 @@ public class UpdateCommandValidateTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 validator: validator);
 
@@ -392,8 +401,9 @@ public class UpdateCommandValidateTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 validator: validator);
 

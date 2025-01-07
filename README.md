@@ -550,6 +550,18 @@ END;
 
 </details>
 
+### InMemoryCommandProvider
+
+<details>
+
+<summary>Expand</summary>
+
+&nbsp;
+
+`InMemoryCommandProvider` is an `ICommandProvider` that uses memory as a temporary backing store. It does not provide persistance. It is intended to assist development and testing of their business logic.
+
+</details>
+
 ## Creating a New Web Application
 
 <details>

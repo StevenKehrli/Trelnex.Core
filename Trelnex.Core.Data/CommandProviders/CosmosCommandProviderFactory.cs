@@ -125,11 +125,11 @@ public class CosmosCommandProviderFactory : ICosmosCommandProviderStatus
             catch (Exception ex)
             {
                 return new CosmosCommandProviderStatus(
-                    cosmosClientOptions.AccountEndpoint,
-                    cosmosClientOptions.DatabaseId,
-                    cosmosClientOptions.ContainerIds,
-                    false,
-                    ex.Message);
+                    AccountEndpoint: cosmosClientOptions.AccountEndpoint,
+                    DatabaseId: cosmosClientOptions.DatabaseId,
+                    ContainerIds: cosmosClientOptions.ContainerIds,
+                    IsHealthy: false,
+                    Error: ex.Message);
             }
         }
 
