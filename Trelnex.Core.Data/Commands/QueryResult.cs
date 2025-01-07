@@ -94,7 +94,10 @@ internal class QueryResult<TInterface, TItem>
     /// <returns>An <see cref="ISaveCommand{TInterface}"/> to delete the item.</returns>
     public ISaveCommand<TInterface> Delete()
     {
-        lock (this)
+        // ensure that only one operation that modifies the item is in progress at a time
+        _semaphore.Wait();
+
+        try
         {
             // check if already converted
             if (_createDeleteCommand is null)
@@ -110,6 +113,10 @@ internal class QueryResult<TInterface, TItem>
 
             return deleteCommand;
         }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
     /// <summary>
@@ -118,7 +125,10 @@ internal class QueryResult<TInterface, TItem>
     /// <returns>An <see cref="ISaveCommand{TInterface}"/> to update the item.</returns>
     public ISaveCommand<TInterface> Update()
     {
-        lock (this)
+        // ensure that only one operation that modifies the item is in progress at a time
+        _semaphore.Wait();
+
+        try
         {
             // check if already converted
             if (_createUpdateCommand is null)
@@ -133,6 +143,10 @@ internal class QueryResult<TInterface, TItem>
             _createUpdateCommand = null!;
 
             return updateCommand;
+        }
+        finally
+        {
+            _semaphore.Release();
         }
     }
 }

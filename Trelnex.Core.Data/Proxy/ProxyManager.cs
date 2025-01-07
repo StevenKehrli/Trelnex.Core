@@ -42,6 +42,11 @@ internal abstract class ProxyManager<TInterface, TItem>
     /// </summary>
     protected ValidateAsyncDelegate<TInterface, TItem> _validateAsyncDelegate = null!;
 
+    /// <summary>
+    /// An exclusive lock to ensure that only one operation that modifies the item is in progress at a time
+    /// </summary>
+    protected readonly SemaphoreSlim _semaphore = new(1, 1);
+
     private readonly PropertyChanges _propertyChanges = new();
 
     /// <summary>
@@ -75,23 +80,33 @@ internal abstract class ProxyManager<TInterface, TItem>
         MethodInfo? targetMethod,
         object?[]? args)
     {
-        // if the item is read only, throw an exception
-        if (_isReadOnly && _propertyGetters.IsGetter(targetMethod) is false)
+        // ensure that only one operation that modifies the item is in progress at a time
+        _semaphore.Wait();
+
+        try
         {
-            throw new InvalidOperationException($"The '{typeof(TInterface)}' is read-only.");
+            // if the item is read only, throw an exception
+            if (_isReadOnly && _propertyGetters.IsGetter(targetMethod) is false)
+            {
+                throw new InvalidOperationException($"The '{typeof(TInterface)}' is read-only.");
+            }
+
+            // invoke the target method and capture the change
+            var invokeResult = _trackProperties.Invoke(targetMethod, _item, args);
+
+            if (invokeResult.IsTracked)
+            {
+                _propertyChanges.Add(
+                    propertyName: invokeResult.PropertyName,
+                    oldValue: invokeResult.OldValue,
+                    newValue: invokeResult.NewValue);
+            }
+
+            return invokeResult.Result;
         }
-
-        // invoke the target method and capture the change
-        var invokeResult = _trackProperties.Invoke(targetMethod, _item, args);
-
-        if (invokeResult.IsTracked)
+        finally
         {
-            _propertyChanges.Add(
-                propertyName: invokeResult.PropertyName,
-                oldValue: invokeResult.OldValue,
-                newValue: invokeResult.NewValue);
+            _semaphore.Release();
         }
-
-        return invokeResult.Result;
     }
 }
