@@ -6,5 +6,4 @@ public interface IInMemoryCommandProviderStatus
 }
 
 public record InMemoryCommandProviderStatus(
-    bool IsHealthy,
-    string? Error);
+    bool IsHealthy);

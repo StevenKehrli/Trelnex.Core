@@ -24,8 +24,7 @@ public class InMemoryCommandProviderFactory : IInMemoryCommandProviderStatus
         InMemoryCommandProviderStatus getStatus()
         {
             return new InMemoryCommandProviderStatus(
-                IsHealthy: true,
-                Error: null);
+                IsHealthy: true);
         }
 
         var factory = new InMemoryCommandProviderFactory(
