@@ -225,18 +225,6 @@ internal class InMemoryCommandProvider<TInterface, TItem>
         return JsonSerializer.Deserialize<T>(jsonString)!;
     }
 
-    private static T Process<T>(
-        T baseItem) where T : BaseItem
-    {
-        // clone
-        var clone = Clone(baseItem);
-
-        // set a new etag
-        clone.ETag = Guid.NewGuid().ToString();
-
-        return clone;
-    }
-
     private static string GetItemKey(
         BaseItem item)
     {
@@ -250,6 +238,18 @@ internal class InMemoryCommandProvider<TInterface, TItem>
         string id)
     {
         return $"{partitionKey}:{id}";
+    }
+
+    private static T Process<T>(
+        T baseItem) where T : BaseItem
+    {
+        // clone
+        var clone = Clone(baseItem);
+
+        // set a new etag
+        clone.ETag = Guid.NewGuid().ToString();
+
+        return clone;
     }
 
     private class InMemoryQueryCommand(
