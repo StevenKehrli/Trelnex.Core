@@ -47,26 +47,26 @@ internal class QueryResult<TInterface, TItem>
     /// <summary>
     /// The method to create a command to delete the item.
     /// </summary>
-    private Func<TItem, ISaveCommand<TInterface>> _convertToDeleteCommand = null!;
+    private Func<TItem, ISaveCommand<TInterface>> _createDeleteCommand = null!;
 
     /// <summary>
     /// The method to create a command to update the item.
     /// </summary>
-    private Func<TItem, ISaveCommand<TInterface>> _convertToUpdateCommand = null!;
+    private Func<TItem, ISaveCommand<TInterface>> _createUpdateCommand = null!;
 
     /// <summary>
     /// Create a proxy item over a item.
     /// </summary>
     /// <param name="item">The item.</param>
     /// <param name="validateAsyncDelegate">The action to validate the item.</param>
-    /// <param name="convertToDeleteCommand">The method to create a <see cref="ISaveCommand{TInterface}" to delete the item.</param>
-    /// <param name="convertToUpdateCommand">The method to create a <see cref="ISaveCommand{TInterface}" to update the item.</param>
+    /// <param name="createDeleteCommand">The method to create a <see cref="ISaveCommand{TInterface}" to delete the item.</param>
+    /// <param name="createUpdateCommand">The method to create a <see cref="ISaveCommand{TInterface}" to update the item.</param>
     /// <returns>A proxy item as TInterface.</returns>
     public static QueryResult<TInterface, TItem> Create(
         TItem item,
         ValidateAsyncDelegate<TInterface, TItem> validateAsyncDelegate,
-        Func<TItem, ISaveCommand<TInterface>> convertToDeleteCommand,
-        Func<TItem, ISaveCommand<TInterface>> convertToUpdateCommand)
+        Func<TItem, ISaveCommand<TInterface>> createDeleteCommand,
+        Func<TItem, ISaveCommand<TInterface>> createUpdateCommand)
     {
         // create the proxy manager - need an item reference for the ItemProxy onInvoke delegate
         var proxyManager = new QueryResult<TInterface, TItem>
@@ -74,8 +74,8 @@ internal class QueryResult<TInterface, TItem>
             _item = item,
             _isReadOnly = true,
             _validateAsyncDelegate = validateAsyncDelegate,
-            _convertToDeleteCommand = convertToDeleteCommand,
-            _convertToUpdateCommand = convertToUpdateCommand,
+            _createDeleteCommand = createDeleteCommand,
+            _createUpdateCommand = createUpdateCommand,
         };
 
         // create the proxy
@@ -94,7 +94,22 @@ internal class QueryResult<TInterface, TItem>
     /// <returns>An <see cref="ISaveCommand{TInterface}"/> to delete the item.</returns>
     public ISaveCommand<TInterface> Delete()
     {
-        return _convertToDeleteCommand(_item);
+        lock (this)
+        {
+            // check if already converted
+            if (_createDeleteCommand is null)
+            {
+                throw new InvalidOperationException("The Delete() method cannot be called because either the Delete() or Update() method has already been called.");
+            }
+
+            var deleteCommand = _createDeleteCommand(_item);
+
+            // null out the convert delegates so we know that we have already converted and are no longer valid
+            _createDeleteCommand = null!;
+            _createUpdateCommand = null!;
+
+            return deleteCommand;
+        }
     }
 
     /// <summary>
@@ -103,6 +118,21 @@ internal class QueryResult<TInterface, TItem>
     /// <returns>An <see cref="ISaveCommand{TInterface}"/> to update the item.</returns>
     public ISaveCommand<TInterface> Update()
     {
-        return _convertToUpdateCommand(_item);
+        lock (this)
+        {
+            // check if already converted
+            if (_createUpdateCommand is null)
+            {
+                throw new InvalidOperationException("The Update() method cannot be called because either the Delete() or Update() method has already been called.");
+            }
+
+            var updateCommand = _createUpdateCommand(_item);
+
+            // null out the convert delegates so we know that we have already converted and are no longer valid
+            _createDeleteCommand = null!;
+            _createUpdateCommand = null!;
+
+            return updateCommand;
+        }
     }
 }
