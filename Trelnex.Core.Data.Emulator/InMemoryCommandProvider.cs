@@ -43,8 +43,11 @@ public static class InMemoryCommandProvider
 /// This validates that the item is json attributed correctly for a persistent backing store (Cosmos).
 /// </para>
 /// </remarks>
-internal class InMemoryCommandProvider<TInterface, TItem>
-    : CommandProvider<TInterface, TItem>
+internal class InMemoryCommandProvider<TInterface, TItem>(
+    string typeName,
+    AbstractValidator<TItem>? itemValidator = null,
+    CommandOperations? commandOperations = null)
+    : CommandProvider<TInterface, TItem>(typeName, itemValidator, commandOperations)
     where TInterface : class, IBaseItem
     where TItem : BaseItem, TInterface, new()
 {
@@ -65,14 +68,6 @@ internal class InMemoryCommandProvider<TInterface, TItem>
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
-
-    public InMemoryCommandProvider(
-        string typeName,
-        AbstractValidator<TItem>? itemValidator = null,
-        CommandOperations? commandOperations = null)
-        : base(typeName, itemValidator, commandOperations)
-    {
-    }
 
     /// <summary>
     /// Creates a item in the backing data store as an asynchronous operation.
