@@ -29,31 +29,6 @@ public static class InMemoryCommandProvider
             validator,
             commandOperations);
     }
-
-    /// <summary>
-    /// Create an instance of the <see cref="InMemoryCommandProvider"/>.
-    /// </summary>
-    /// <param name="persistPath">The local path to persist the items.</param>
-    /// <param name="typeName">The type name of the item - used for <see cref="BaseItem.TypeName"/>.</param>
-    /// <param name="validator">The fluent validator for the item</param>
-    /// <param name="commandOperations">The value indicating if update and delete commands are allowed. By default, update is allowed; delete is not allowed.</param>
-    /// <typeparam name="TInterface">The specified interface type></typeparam>
-    /// <typeparam name="TItem">The specified item type that implements the specified interface type</typeparam>
-    /// <returns>The <see cref="InMemoryCommandProvider"/>.</returns>
-    public static ICommandProvider<TInterface> Create<TInterface, TItem>(
-        string persistPath,
-        string typeName,
-        AbstractValidator<TItem>? validator = null,
-        CommandOperations? commandOperations = null)
-        where TInterface : class, IBaseItem
-        where TItem : BaseItem, TInterface, new()
-    {
-        return new InMemoryCommandProvider<TInterface, TItem>(
-            persistPath,
-            typeName,
-            validator,
-            commandOperations);
-    }
 }
 
 /// <summary>
@@ -61,7 +36,7 @@ public static class InMemoryCommandProvider
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is a temporary store in memory for item storage and retrieval. Items are optionally persisted to local storage.
+/// This is a temporary store in memory for item storage and retrieval.
 /// </para>
 /// <para>
 /// This command provider will serialize the item to a string for storage and deserialize the string to a item for retrieval.
@@ -73,11 +48,6 @@ internal class InMemoryCommandProvider<TInterface, TItem>
     where TInterface : class, IBaseItem
     where TItem : BaseItem, TInterface, new()
 {
-    /// <summary>
-    /// The local path to persist the items
-    /// </summary>
-    private readonly string? _persistPath = null;
-
     /// <summary>
     /// The backing store of items
     /// </summary>
@@ -104,19 +74,6 @@ internal class InMemoryCommandProvider<TInterface, TItem>
     {
     }
 
-    public InMemoryCommandProvider(
-        string persistPath,
-        string typeName,
-        AbstractValidator<TItem>? itemValidator = null,
-        CommandOperations? commandOperations = null)
-        : base(typeName, itemValidator, commandOperations)
-    {
-        _persistPath = persistPath;
-
-        _items = LoadItemsFromLocalStorage(persistPath, typeName);
-        _events = LoadEventsFromLocalStorage(persistPath, typeName);
-    }
-
     /// <summary>
     /// Creates a item in the backing data store as an asynchronous operation.
     /// </summary>
@@ -138,7 +95,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>
         // add to the backing store
         if (_items.TryAdd(itemKey, updatedItem) is false)
         {
-            throw new HttpStatusCodeException(HttpStatusCode.Conflict);
+            throw new CommandException(HttpStatusCode.Conflict);
         }
 
 
@@ -150,9 +107,6 @@ internal class InMemoryCommandProvider<TInterface, TItem>
         _events.Add(updatedItemEvent);
 
 
-
-        // persist to local storage
-        SaveToLocalStorage();
 
         // return
         return Task.FromResult(updatedItem);
@@ -182,7 +136,8 @@ internal class InMemoryCommandProvider<TInterface, TItem>
             return Task.FromResult<TItem?>(null);
         }
 
-        return Task.FromResult<TItem?>(item);
+        // clone the item
+        return Task.FromResult<TItem?>(Clone(item));
     }
 
     /// <summary>
@@ -229,9 +184,6 @@ internal class InMemoryCommandProvider<TInterface, TItem>
 
 
 
-        // persist to local storage
-        SaveToLocalStorage();
-
         // return
         return updatedItem;
     }
@@ -262,65 +214,14 @@ internal class InMemoryCommandProvider<TInterface, TItem>
         return _events.ToArray();
     }
 
-    private static List<ItemEvent<TItem>> LoadEventsFromLocalStorage(
-        string path,
-        string typeName)
+    private static T Clone<T>(
+        T obj)
     {
-        if (path is null) return [];
+        // serialize to json string
+        var jsonString = JsonSerializer.Serialize(obj, _options);
 
-        // deserialize the array of TItem from the local file
-
-        var eventPath = Path.Combine(path, $"{typeName}-events.json");
-
-        if (Path.Exists(eventPath) is false) return [];
-
-        using var stream = File.OpenRead(eventPath);
-
-        var events = JsonSerializer.Deserialize<ItemEvent<TItem>[]>(stream)!;
-
-        return events.ToList();
-    }
-
-    private static Dictionary<string, TItem> LoadItemsFromLocalStorage(
-        string path,
-        string typeName)
-    {
-        if (path is null) return [];
-
-        // deserialize the array of TItem from the local file
-
-        var itemPath = Path.Combine(path, $"{typeName}.json");
-
-        if (Path.Exists(itemPath) is false) return [];
-
-        using var stream = File.OpenRead(itemPath);
-
-        var items = JsonSerializer.Deserialize<TItem[]>(stream)!;
-
-        return items.ToDictionary(
-            keySelector: item => GetItemKey(item),
-            elementSelector: item => item);
-    }
-
-    private void SaveToLocalStorage()
-    {
-        if (_persistPath is null) return;
-
-        // serialize the array of TItem to the local file
-
-        var itemPath = Path.Combine(_persistPath, $"{_typeName}.json");
-
-        using var itemStream = File.OpenWrite(itemPath);
-
-        JsonSerializer.Serialize(itemStream, _items.Values, _options);
-
-        // serialize the array of ItemEvent<TItem> to the local file
-
-        var eventPath = Path.Combine(_persistPath, $"{_typeName}-events.json");
-
-        using var eventStream = File.OpenWrite(eventPath);
-
-        JsonSerializer.Serialize(eventStream, _events, _options);
+        // deserialize back to type
+        return JsonSerializer.Deserialize<T>(jsonString)!;
     }
 
     private static ItemEvent<TItem> ProcessEvent(
@@ -329,15 +230,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>
         // set a new etag
         itemEvent.ETag = Guid.NewGuid().ToString();
 
-        // serialize to a json string
-        var eventJsonString = JsonSerializer.Serialize(itemEvent, _options);
-
-        // deserialize to "updated' item
-        var updatedItemEvent = JsonSerializer.Deserialize<ItemEvent<TItem>>(eventJsonString)!;
-
-        // fix the dynamics
-
-        return updatedItemEvent;
+        return Clone(itemEvent);
     }
 
     private static TItem ProcessItem(
@@ -346,11 +239,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>
         // set a new etag
         item.ETag = Guid.NewGuid().ToString();
 
-        // serialize to json string
-        var itemJsonString = JsonSerializer.Serialize(item, _options);
-
-        // deserialize to "updated' item
-        return JsonSerializer.Deserialize<TItem>(itemJsonString)!;
+        return Clone(item);
     }
 
     private static string GetItemKey(
