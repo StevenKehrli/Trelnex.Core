@@ -3,7 +3,7 @@ using FluentValidation;
 
 namespace Trelnex.Core.Data.Tests.CommandProviders;
 
-internal interface ITestItem : IBaseItem
+public interface ITestItem : IBaseItem
 {
     string Message { get; set; }
 }
