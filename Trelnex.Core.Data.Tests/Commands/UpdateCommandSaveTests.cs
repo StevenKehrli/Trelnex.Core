@@ -1,5 +1,3 @@
-using Snapshooter.NUnit;
-
 namespace Trelnex.Core.Data.Tests.Commands;
 
 public class UpdateCommandTests

@@ -87,13 +87,13 @@ internal class InMemoryCommandProvider<TInterface, TItem>
         CancellationToken cancellationToken = default)
     {
         // process the item
-        var updatedItem = UpdateETag(item);
+        var processedItem = Process(item);
 
         // get the item key
-        var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(updatedItem);
+        var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(processedItem);
 
         // add to the backing store
-        if (_items.TryAdd(itemKey, updatedItem) is false)
+        if (_items.TryAdd(itemKey, processedItem) is false)
         {
             throw new CommandException(HttpStatusCode.Conflict);
         }
@@ -101,15 +101,15 @@ internal class InMemoryCommandProvider<TInterface, TItem>
 
 
         // process the event
-        var updatedItemEvent = UpdateETag(itemEvent);
+        var processedItemEvent = Process(itemEvent);
 
         // add to the backing store
-        _events.Add(updatedItemEvent);
+        _events.Add(processedItemEvent);
 
 
 
         // return
-        return Task.FromResult(updatedItem);
+        return Task.FromResult(processedItem);
     }
 
     /// <summary>
@@ -136,8 +136,9 @@ internal class InMemoryCommandProvider<TInterface, TItem>
             return Task.FromResult<TItem?>(null);
         }
 
-        // clone the item
-        return Task.FromResult<TItem?>(Clone(item));
+        // clone the item and return
+        var clone = Clone(item);
+        return Task.FromResult<TItem?>(clone);
     }
 
     /// <summary>
@@ -166,26 +167,26 @@ internal class InMemoryCommandProvider<TInterface, TItem>
 
 
         // process the item
-        var updatedItem = UpdateETag(item);
+        var processedItem = Process(item);
 
         // get the item key
         var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(item);
 
         // update in the backing store
-        _items[itemKey] = updatedItem;
+        _items[itemKey] = processedItem;
 
 
 
         // process the event
-        var updatedItemEvent = UpdateETag(itemEvent);
+        var processedItemEvent = Process(itemEvent);
 
         // add to the backing store
-        _events.Add(updatedItemEvent);
+        _events.Add(processedItemEvent);
 
 
 
         // return
-        return updatedItem;
+        return processedItem;
     }
 
     /// <summary>
@@ -224,13 +225,16 @@ internal class InMemoryCommandProvider<TInterface, TItem>
         return JsonSerializer.Deserialize<T>(jsonString)!;
     }
 
-    private static T UpdateETag<T>(
+    private static T Process<T>(
         T baseItem) where T : BaseItem
     {
-        // set a new etag
-        baseItem.ETag = Guid.NewGuid().ToString();
+        // clone
+        var clone = Clone(baseItem);
 
-        return Clone(baseItem);
+        // set a new etag
+        clone.ETag = Guid.NewGuid().ToString();
+
+        return clone;
     }
 
     private static string GetItemKey(
