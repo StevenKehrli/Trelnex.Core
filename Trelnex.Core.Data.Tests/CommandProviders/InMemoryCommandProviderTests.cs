@@ -2,7 +2,7 @@ namespace Trelnex.Core.Data.Tests.CommandProviders;
 
 public class InMemoryCommandProviderTests : CommandProviderTests
 {
-    [SetUp]
+    [OneTimeSetUp]
     public async Task TestFixtureSetup()
     {
         // create our command provider
@@ -13,5 +13,13 @@ public class InMemoryCommandProviderTests : CommandProviderTests
                 typeName: "test-item",
                 TestItem.Validator,
                 CommandOperations.All);
+    }
+
+    [TearDown]
+    public void TestCleanup()
+    {
+        // This method is called after each test case is run.
+
+        (_commandProvider as InMemoryCommandProvider<ITestItem, TestItem>)!.Clear();
     }
 }

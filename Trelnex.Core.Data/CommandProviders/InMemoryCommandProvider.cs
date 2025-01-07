@@ -181,6 +181,12 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
             convertToQueryResult: convertToQueryResult);
     }
 
+    internal void Clear()
+    {
+        _items.Clear();
+        _events.Clear();
+    }
+
     internal ItemEvent<TItem>[] GetEvents()
     {
         return _events.ToArray();

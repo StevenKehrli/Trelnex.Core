@@ -57,7 +57,7 @@ public class CosmosCommandProviderTests : CommandProviderTests
     }
 
     [TearDown]
-    public async Task Cleanup()
+    public async Task TestCleanup()
     {
         // This method is called after each test case is run.
 
