@@ -12,8 +12,8 @@ public class InMemoryCommandProviderTests : CommandProviderTests
 {
     private MethodInfo? _clearMethod = null!;
 
-    [SetUp]
-    public void TestSetup()
+    [OneTimeSetUp]
+    public void TestFixtureSetup()
     {
         // This method is called once prior to executing any of the tests in the fixture.
 
