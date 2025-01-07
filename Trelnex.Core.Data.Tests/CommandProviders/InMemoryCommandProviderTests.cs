@@ -1,5 +1,3 @@
-using NUnit.Framework.Internal;
-
 namespace Trelnex.Core.Data.Tests.CommandProviders;
 
 public class InMemoryCommandProviderTests : CommandProviderTests
