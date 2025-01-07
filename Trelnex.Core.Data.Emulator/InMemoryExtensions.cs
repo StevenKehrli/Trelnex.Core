@@ -24,13 +24,10 @@ public static class InMemoryExtensions
         ILogger bootstrapLogger,
         Action<ICommandProviderOptions> configureCommandProviders)
     {
-        var inMemoryConfiguration = configuration.GetSection("InMemory").Get<InMemoryConfiguration>();
-
         // get the container, create the command provider, and inject
         var commandProviderOptions = new CommandProviderOptions(
             services: services,
-            bootstrapLogger: bootstrapLogger,
-            persistPath: inMemoryConfiguration?.PersistPath);
+            bootstrapLogger: bootstrapLogger);
 
         // inject any needed command providers
         configureCommandProviders(commandProviderOptions);
@@ -38,16 +35,9 @@ public static class InMemoryExtensions
         return services;
     }
 
-    /// <summary>
-    /// Represents the configuration properties for in memory command providers.
-    /// </summary>
-    private record InMemoryConfiguration(
-        string PersistPath);
-
     private class CommandProviderOptions(
         IServiceCollection services,
-        ILogger bootstrapLogger,
-        string? persistPath)
+        ILogger bootstrapLogger)
         : ICommandProviderOptions
     {
         public ICommandProviderOptions Add<TInterface, TItem>(
@@ -58,27 +48,20 @@ public static class InMemoryExtensions
             where TItem : BaseItem, TInterface, new()
         {
             // create the command provider and inject it
-            var commandProvider = (persistPath is not null)
-                ? InMemoryCommandProvider.Create<TInterface, TItem>(
-                    persistPath,
-                    typeName,
-                    itemValidator,
-                    commandOperations)
-                : InMemoryCommandProvider.Create<TInterface, TItem>(
-                    typeName,
-                    itemValidator,
-                    commandOperations);
+            var commandProvider = InMemoryCommandProvider.Create<TInterface, TItem>(
+                typeName,
+                itemValidator,
+                commandOperations);
 
             object[] args =
             [
                 typeof(TInterface), // TInterface,
                 typeof(TItem), // TItem,
-                persistPath ?? null!, // persistPath
             ];
 
             // log - the :l format parameter (l = literal) to avoid the quotes
             bootstrapLogger.LogInformation(
-                message: "Added CommandProvider<{TInterface:l}, {TItem:l}> with persistPath '{persistPath:l}'.",
+                message: "Added CommandProvider<{TInterface:l}, {TItem:l}>.",
                 args: args);
 
             services.AddSingleton(commandProvider);

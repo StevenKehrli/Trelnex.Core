@@ -7,67 +7,6 @@ public class CreateCommandSaveTests
     private readonly string _typeName = "test-item";
 
     [Test]
-    public async Task CreateCommand_SaveAsync()
-    {
-        var id = "0346bbe4-0154-449f-860d-f3c1819aa174";
-        var partitionKey = "c8a6b519-3323-4bcb-9945-ab30d8ff96ff";
-
-        var startDateTime = DateTime.UtcNow;
-
-        var requestContext = TestRequestContext.Create();
-
-        // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
-                typeName: _typeName);
-
-        var createCommand = commandProvider.Create(
-            id: id,
-            partitionKey: partitionKey);
-
-        createCommand.Item.PublicMessage = "Public #1";
-        createCommand.Item.PrivateMessage = "Private #1";
-
-        // save it and read it back
-        var created = await createCommand.SaveAsync(
-            requestContext: requestContext,
-            cancellationToken: default);
-
-        Assert.That(created, Is.Not.Null);
-
-        Snapshot.Match(
-            created,
-            matchOptions => matchOptions
-                .Assert(fieldOption =>
-                {
-                    Assert.Multiple(() =>
-                    {
-                        var currentDateTime = DateTime.UtcNow;
-
-                        // createdDate
-                        Assert.That(
-                            fieldOption.Field<DateTime>("Item.CreatedDate"),
-                            Is.InRange(startDateTime, currentDateTime));
-
-                        // updatedDate
-                        Assert.That(
-                            fieldOption.Field<DateTime>("Item.UpdatedDate"),
-                            Is.InRange(startDateTime, currentDateTime));
-
-                        // createdDate == updatedDate
-                        Assert.That(
-                            fieldOption.Field<DateTime>("Item.CreatedDate"),
-                            Is.EqualTo(fieldOption.Field<DateTime>("Item.UpdatedDate")));
-
-                        // _eTag
-                        Assert.That(
-                            fieldOption.Field<Guid>("Item.ETag"),
-                            Is.Not.Default);
-                    });
-                }));
-    }
-
-    [Test]
     public async Task CreateCommand_SaveAsync_IsReadOnlyAfterSave()
     {
         var id = Guid.NewGuid().ToString();
