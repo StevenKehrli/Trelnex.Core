@@ -59,7 +59,7 @@ public class SqlCommandProviderTests : CommandProviderTests
     }
 
     [TearDown]
-    public void Cleanup()
+    public void TestCleanup()
     {
         // This method is called after each test has run.
         using var sqlConnection = new SqlConnection(_connectionString);
