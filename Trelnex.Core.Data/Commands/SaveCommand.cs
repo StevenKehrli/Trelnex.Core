@@ -53,6 +53,11 @@ internal class SaveCommand<TInterface, TItem>
     private SaveAsyncDelegate<TInterface, TItem> _saveAsyncDelegate = null!;
 
     /// <summary>
+    /// An exclusive lock to ensure that only one save operation is in progress at a time.
+    /// </summary>
+    private readonly SemaphoreSlim _saveAsyncSemaphore = new(1, 1);
+
+    /// <summary>
     /// Create a proxy item over a item.
     /// </summary>
     /// <param name="item">The item.</param>
@@ -99,44 +104,54 @@ internal class SaveCommand<TInterface, TItem>
         IRequestContext requestContext,
         CancellationToken cancellationToken)
     {
-        // check if already saved
-        if (_saveAsyncDelegate is null)
+        // ensure that only one save operation is in progress at a time
+        await _saveAsyncSemaphore.WaitAsync(cancellationToken);
+
+        try
         {
-            throw new InvalidOperationException("The Command is no longer valid because its SaveAsync method has already been called.");
+            // check if already saved
+            if (_saveAsyncDelegate is null)
+            {
+                throw new InvalidOperationException("The Command is no longer valid because its SaveAsync method has already been called.");
+            }
+
+            // validate the underlying item
+            var validationResult = await ValidateAsync(cancellationToken);
+
+            validationResult.ValidateOrThrow<TItem>();
+
+            // create the event
+            var itemEvent = ItemEvent<TItem>.Create(
+                related: _item,
+                saveAction: _saveAction,
+                changes: GetPropertyChanges(),
+                requestContext: requestContext);
+
+            // save the item - get the updated item
+            var updatedItem = await _saveAsyncDelegate(
+                item: _item,
+                itemEvent: itemEvent,
+                cancellationToken: cancellationToken);
+
+            // create the updated proxy over the updated item
+            var updatedProxy = ItemProxy<TInterface, TItem>.Create(OnInvoke);
+
+            // set the updated item and proxy
+            _item = updatedItem;
+            _proxy = updatedProxy;
+            _isReadOnly = true;
+
+            // null out the saveAsyncDelegate so we know that we have already saved and are no longer valid
+            _saveAsyncDelegate = null!;
+
+            // create the read result and return
+            return ReadResult<TInterface, TItem>.Create(
+                item: updatedItem,
+                validateAsyncDelegate: _validateAsyncDelegate);
         }
-
-        // validate the underlying item
-        var validationResult = await ValidateAsync(cancellationToken);
-
-        validationResult.ValidateOrThrow<TItem>();
-
-        // create the event
-        var itemEvent = ItemEvent<TItem>.Create(
-            related: _item,
-            saveAction: _saveAction,
-            changes: GetPropertyChanges(),
-            requestContext: requestContext);
-
-        // save the item - get the updated item
-        var updatedItem = await _saveAsyncDelegate(
-            item: _item,
-            itemEvent: itemEvent,
-            cancellationToken: cancellationToken);
-
-        // create the updated proxy over the updated item
-        var updatedProxy = ItemProxy<TInterface, TItem>.Create(OnInvoke);
-
-        // set the updated item and proxy
-        _item = updatedItem;
-        _proxy = updatedProxy;
-        _isReadOnly = true;
-
-        // null out the saveAsyncDelegate so we know that we have already saved are are no longer valid
-        _saveAsyncDelegate = null!;
-
-        // create the read result and return
-        return ReadResult<TInterface, TItem>.Create(
-            item: updatedItem,
-            validateAsyncDelegate: _validateAsyncDelegate);
+        finally
+        {
+            _saveAsyncSemaphore.Release();
+        }
     }
 }

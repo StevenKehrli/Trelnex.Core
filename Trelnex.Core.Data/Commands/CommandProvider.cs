@@ -262,8 +262,8 @@ internal abstract partial class CommandProvider<TInterface, TItem>
                 return QueryResult<TInterface, TItem>.Create(
                     item: item,
                     validateAsyncDelegate: ValidateAsync,
-                    convertToDeleteCommand: CreateDeleteCommand,
-                    convertToUpdateCommand: CreateUpdateCommand);
+                    createDeleteCommand: CreateDeleteCommand,
+                    createUpdateCommand: CreateUpdateCommand);
             });
     }
 

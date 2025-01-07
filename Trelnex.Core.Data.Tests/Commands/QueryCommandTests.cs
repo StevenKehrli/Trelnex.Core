@@ -537,6 +537,92 @@ public class QueryCommandTests
     }
 
     [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_Delete_Delete()
+    {
+        var id = Guid.NewGuid().ToString();
+        var partitionKey = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        // create our command provider
+        var commandProvider =
+            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+                typeName: _typeName);
+
+        var createCommand = commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand.Item.PublicMessage = "Public #1";
+        createCommand.Item.PrivateMessage = "Private #1";
+
+        // save it
+        await createCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = commandProvider.Query();
+
+        // should return first item
+        var read1 = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Assert.That(read1, Is.Not.Null);
+        Assert.That(read1, Has.Length.EqualTo(1));
+
+        // get the first item and delete
+        var deleteCommand = read1[0].Delete();
+
+        // try to delete again
+        Assert.Throws<InvalidOperationException>(
+            () => read1[0].Delete(),
+            "The Delete() method cannot be called because either the Delete() or Update() method has already been called.");
+    }
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_Delete_Update()
+    {
+        var id = Guid.NewGuid().ToString();
+        var partitionKey = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        // create our command provider
+        var commandProvider =
+            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+                typeName: _typeName);
+
+        var createCommand = commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand.Item.PublicMessage = "Public #1";
+        createCommand.Item.PrivateMessage = "Private #1";
+
+        // save it
+        await createCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = commandProvider.Query();
+
+        // should return first item
+        var read1 = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Assert.That(read1, Is.Not.Null);
+        Assert.That(read1, Has.Length.EqualTo(1));
+
+        // get the first item and delete
+        var deleteCommand = read1[0].Delete();
+
+        // try to update
+        Assert.Throws<InvalidOperationException>(
+            () => read1[0].Update(),
+            "The Delete() method cannot be called because either the Delete() or Update() method has already been called.");
+    }
+
+    [Test]
     public async Task QueryCommand_ToAsyncEnumerable_Update()
     {
         var id = Guid.NewGuid().ToString();
@@ -592,5 +678,91 @@ public class QueryCommandTests
                 .IgnoreField("**.UpdatedDate")
                 .IgnoreField("**.ETag"));
 
+    }
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_Update_Delete()
+    {
+        var id = Guid.NewGuid().ToString();
+        var partitionKey = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        // create our command provider
+        var commandProvider =
+            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+                typeName: _typeName);
+
+        var createCommand = commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand.Item.PublicMessage = "Public #1";
+        createCommand.Item.PrivateMessage = "Private #1";
+
+        // save it
+        await createCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = commandProvider.Query();
+
+        // should return first item
+        var read1 = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Assert.That(read1, Is.Not.Null);
+        Assert.That(read1, Has.Length.EqualTo(1));
+
+        // get the first item and update
+        var updateCommand = read1[0].Update();
+
+        // try to delete
+        Assert.Throws<InvalidOperationException>(
+            () => read1[0].Delete(),
+            "The Delete() method cannot be called because either the Delete() or Update() method has already been called.");
+    }
+
+    [Test]
+    public async Task QueryCommand_ToAsyncEnumerable_Update_Update()
+    {
+        var id = Guid.NewGuid().ToString();
+        var partitionKey = Guid.NewGuid().ToString();
+
+        var requestContext = TestRequestContext.Create();
+
+        // create our command provider
+        var commandProvider =
+            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+                typeName: _typeName);
+
+        var createCommand = commandProvider.Create(
+            id: id,
+            partitionKey: partitionKey);
+
+        createCommand.Item.PublicMessage = "Public #1";
+        createCommand.Item.PrivateMessage = "Private #1";
+
+        // save it
+        await createCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        // query
+        var queryCommand = commandProvider.Query();
+
+        // should return first item
+        var read1 = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        Assert.That(read1, Is.Not.Null);
+        Assert.That(read1, Has.Length.EqualTo(1));
+
+        // get the first item and update
+        var updateCommand = read1[0].Update();
+
+        // try to update again
+        Assert.Throws<InvalidOperationException>(
+            () => read1[0].Update(),
+            "The Update() method cannot be called because either the Delete() or Update() method has already been called.");
     }
 }
