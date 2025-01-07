@@ -87,7 +87,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>
         CancellationToken cancellationToken = default)
     {
         // process the item
-        var updatedItem = ProcessItem(item);
+        var updatedItem = UpdateETag(item);
 
         // get the item key
         var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(updatedItem);
@@ -101,7 +101,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>
 
 
         // process the event
-        var updatedItemEvent = ProcessEvent(itemEvent);
+        var updatedItemEvent = UpdateETag(itemEvent);
 
         // add to the backing store
         _events.Add(updatedItemEvent);
@@ -166,7 +166,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>
 
 
         // process the item
-        var updatedItem = ProcessItem(item);
+        var updatedItem = UpdateETag(item);
 
         // get the item key
         var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(item);
@@ -177,7 +177,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>
 
 
         // process the event
-        var updatedItemEvent = ProcessEvent(itemEvent);
+        var updatedItemEvent = UpdateETag(itemEvent);
 
         // add to the backing store
         _events.Add(updatedItemEvent);
@@ -215,31 +215,22 @@ internal class InMemoryCommandProvider<TInterface, TItem>
     }
 
     private static T Clone<T>(
-        T obj)
+        T baseItem) where T : BaseItem
     {
         // serialize to json string
-        var jsonString = JsonSerializer.Serialize(obj, _options);
+        var jsonString = JsonSerializer.Serialize(baseItem, _options);
 
         // deserialize back to type
         return JsonSerializer.Deserialize<T>(jsonString)!;
     }
 
-    private static ItemEvent<TItem> ProcessEvent(
-        ItemEvent<TItem> itemEvent)
+    private static T UpdateETag<T>(
+        T baseItem) where T : BaseItem
     {
         // set a new etag
-        itemEvent.ETag = Guid.NewGuid().ToString();
+        baseItem.ETag = Guid.NewGuid().ToString();
 
-        return Clone(itemEvent);
-    }
-
-    private static TItem ProcessItem(
-        TItem item)
-    {
-        // set a new etag
-        item.ETag = Guid.NewGuid().ToString();
-
-        return Clone(item);
+        return Clone(baseItem);
     }
 
     private static string GetItemKey(
