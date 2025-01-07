@@ -13,8 +13,9 @@ public class DeleteCommandTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 commandOperations: CommandOperations.Delete);
 
@@ -50,14 +51,15 @@ public class DeleteCommandTests
     }
 
     [Test]
-    public void DeleteCommand_SaveAsync_NotSupported()
+    public async Task DeleteCommand_SaveAsync_NotSupported()
     {
         var id = Guid.NewGuid().ToString();
         var partitionKey = Guid.NewGuid().ToString();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 commandOperations: CommandOperations.None);
 
@@ -75,8 +77,9 @@ public class DeleteCommandTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 commandOperations: CommandOperations.Delete);
 
@@ -128,8 +131,9 @@ public class DeleteCommandTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 commandOperations: CommandOperations.Delete);
 

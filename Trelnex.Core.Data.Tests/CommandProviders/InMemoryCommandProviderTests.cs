@@ -3,11 +3,13 @@ namespace Trelnex.Core.Data.Tests.CommandProviders;
 public class InMemoryCommandProviderTests : CommandProviderTests
 {
     [SetUp]
-    public void TestFixtureSetup()
+    public async Task TestFixtureSetup()
     {
         // create our command provider
+        var factory = await InMemoryCommandProviderFactory.Create();
+
         _commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+            factory.Create<ITestItem, TestItem>(
                 typeName: "test-item",
                 TestItem.Validator,
                 CommandOperations.All);

@@ -13,8 +13,9 @@ public class UpdateCommandTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName);
 
         var createCommand = commandProvider.Create(
@@ -60,14 +61,15 @@ public class UpdateCommandTests
     }
 
     [Test]
-    public void UpdateCommandSave_SaveAsync_NotSupported()
+    public async Task UpdateCommandSave_SaveAsync_NotSupported()
     {
         var id = Guid.NewGuid().ToString();
         var partitionKey = Guid.NewGuid().ToString();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 commandOperations: CommandOperations.None);
 
@@ -85,8 +87,9 @@ public class UpdateCommandTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 commandOperations: CommandOperations.Update);
 
@@ -141,8 +144,9 @@ public class UpdateCommandTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName);
 
         var createCommand = commandProvider.Create(

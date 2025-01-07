@@ -17,8 +17,9 @@ public class DeleteCommandEventTests
         var requestContext = TestRequestContext.Create();
 
         // create our command provider
-        var commandProvider =
-            InMemoryCommandProvider.Create<ITestItem, TestItem>(
+        var factory = await InMemoryCommandProviderFactory.Create();
+
+        var commandProvider = factory.Create<ITestItem, TestItem>(
                 typeName: _typeName,
                 commandOperations: CommandOperations.Delete);
 

@@ -27,6 +27,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <ItemGroup>
         <Using Include="NUnit.Framework" />
     </ItemGroup>
 
@@ -36,7 +40,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Trelnex.Core.Data.Emulator\Trelnex.Core.Data.Emulator.csproj" />
+        <ProjectReference Include="..\Trelnex.Core.Data\Trelnex.Core.Data.csproj" />
     </ItemGroup>
 
 </Project>
