@@ -11,8 +11,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Trelnex.Core.Client", "Trel
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trelnex.Core.Data", "Trelnex.Core.Data\Trelnex.Core.Data.csproj", "{7960F0B4-BBB7-4A8E-A6A9-B8B1623EF66E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trelnex.Core.Data.Emulator", "Trelnex.Core.Data.Emulator\Trelnex.Core.Data.Emulator.csproj", "{ABBC16CE-A7AF-4F97-8C9D-266246DB7A53}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trelnex.Core.Data.Tests", "Trelnex.Core.Data.Tests\Trelnex.Core.Data.Tests.csproj", "{D7412C71-C094-48CD-97FB-41678E652B6A}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Trelnex.Core.HttpStatusCode", "Trelnex.Core.HttpStatusCode\Trelnex.Core.HttpStatusCode.csproj", "{C94EE913-420B-44F8-BF5E-6DADB34EE434}"
@@ -39,10 +37,6 @@ Global
 		{7960F0B4-BBB7-4A8E-A6A9-B8B1623EF66E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7960F0B4-BBB7-4A8E-A6A9-B8B1623EF66E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7960F0B4-BBB7-4A8E-A6A9-B8B1623EF66E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{ABBC16CE-A7AF-4F97-8C9D-266246DB7A53}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{ABBC16CE-A7AF-4F97-8C9D-266246DB7A53}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{ABBC16CE-A7AF-4F97-8C9D-266246DB7A53}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{ABBC16CE-A7AF-4F97-8C9D-266246DB7A53}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D7412C71-C094-48CD-97FB-41678E652B6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D7412C71-C094-48CD-97FB-41678E652B6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D7412C71-C094-48CD-97FB-41678E652B6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
