@@ -53,11 +53,6 @@ internal class SaveCommand<TInterface, TItem>
     private SaveAsyncDelegate<TInterface, TItem> _saveAsyncDelegate = null!;
 
     /// <summary>
-    /// An exclusive lock to ensure that only one save operation is in progress at a time.
-    /// </summary>
-    private readonly SemaphoreSlim _saveAsyncSemaphore = new(1, 1);
-
-    /// <summary>
     /// Create a proxy item over a item.
     /// </summary>
     /// <param name="item">The item.</param>
@@ -104,8 +99,8 @@ internal class SaveCommand<TInterface, TItem>
         IRequestContext requestContext,
         CancellationToken cancellationToken)
     {
-        // ensure that only one save operation is in progress at a time
-        await _saveAsyncSemaphore.WaitAsync(cancellationToken);
+        // ensure that only one operation that modifies the item is in progress at a time
+        await _semaphore.WaitAsync(cancellationToken);
 
         try
         {
@@ -151,7 +146,7 @@ internal class SaveCommand<TInterface, TItem>
         }
         finally
         {
-            _saveAsyncSemaphore.Release();
+            _semaphore.Release();
         }
     }
 }
