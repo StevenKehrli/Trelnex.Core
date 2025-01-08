@@ -29,7 +29,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     /// <summary>
     /// An exclusive lock to ensure that only one operation that modifies the backing store is in progress at a time
     /// </summary>
-    private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.SupportsRecursion);
+    private readonly ReaderWriterLockSlim _lock = new();
 
     /// <summary>
     /// The backing store of items
