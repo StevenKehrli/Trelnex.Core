@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -28,14 +27,19 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     where TItem : BaseItem, TInterface, new()
 {
     /// <summary>
+    /// An exclusive lock to ensure that only one operation that modifies the backing store is in progress at a time
+    /// </summary>
+    private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.SupportsRecursion);
+
+    /// <summary>
     /// The backing store of items
     /// </summary>
-    private readonly ConcurrentDictionary<string, TItem> _items = [];
+    private Dictionary<string, TItem> _items = [];
 
     /// <summary>
     /// The backing store of events
     /// </summary>
-    private readonly ConcurrentQueue<ItemEvent<TItem>> _events = [];
+    private List<ItemEvent<TItem>> _events = [];
 
     /// <summary>
     /// The json serializer options
@@ -57,30 +61,36 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         ItemEvent<TItem> itemEvent,
         CancellationToken cancellationToken = default)
     {
+        // get the item key
+        var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(item);
+
         // process the item
         var processedItem = Process(item);
-
-        // get the item key
-        var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(processedItem);
-
-        // add to the backing store
-        if (_items.TryAdd(itemKey, processedItem) is false)
-        {
-            throw new CommandException(HttpStatusCode.Conflict);
-        }
-
-
 
         // process the event
         var processedItemEvent = Process(itemEvent);
 
-        // add to the backing store
-        _events.Enqueue(processedItemEvent);
+        try
+        {
+            // lock
+            _lock.EnterWriteLock();
 
+            // add to the backing store
+            if (_items.TryAdd(itemKey, processedItem) is false)
+            {
+                throw new CommandException(HttpStatusCode.Conflict);
+            }
 
+            _events.Add(processedItemEvent);
 
-        // return
-        return Task.FromResult(processedItem);
+            // return
+            return Task.FromResult(processedItem);
+        }
+        finally
+        {
+            // unlock
+            _lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -100,16 +110,26 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
             partitionKey: partitionKey,
             id: id);
 
-        // get the item
-        if (_items.TryGetValue(itemKey, out var item) is false)
+        try
         {
-            // not found
-            return Task.FromResult<TItem?>(null);
-        }
+            // lock
+            _lock.EnterReadLock();
 
-        // clone the item and return
-        var clone = Clone(item);
-        return Task.FromResult<TItem?>(clone);
+            // get the item
+            if (_items.TryGetValue(itemKey, out var currentItem) is false)
+            {
+                // not found
+                return Task.FromResult<TItem?>(null);
+            }
+
+            // clone the item and return
+            return Task.FromResult<TItem?>(result: Clone(currentItem));
+        }
+        finally
+        {
+            // unlock
+            _lock.ExitReadLock();
+        }
     }
 
     /// <summary>
@@ -124,40 +144,46 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         ItemEvent<TItem> itemEvent,
         CancellationToken cancellationToken = default)
     {
-        // get the current item
-        var currentItem = await ReadItemAsync(item.Id, item.PartitionKey, cancellationToken);
-
-        if (currentItem is null) throw new CommandException(HttpStatusCode.NotFound);
-
-        // check the version (ETag) is unchanged
-        if (string.Equals(currentItem.ETag, item.ETag) is false)
-        {
-            throw new CommandException(HttpStatusCode.Conflict);
-        }
-
-
+        // get the item key
+        var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(item);
 
         // process the item
         var processedItem = Process(item);
 
-        // get the item key
-        var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(item);
-
-        // update in the backing store
-        _items[itemKey] = processedItem;
-
-
-
         // process the event
         var processedItemEvent = Process(itemEvent);
 
-        // add to the backing store
-        _events.Enqueue(processedItemEvent);
+        try
+        {
+            // lock
+            _lock.EnterWriteLock();
 
+            // get the item
+            if (_items.TryGetValue(itemKey, out var currentItem) is false)
+            {
+                // not found
+                throw new CommandException(HttpStatusCode.NotFound);
+            }
 
+            // check the version (ETag) is unchanged
+            if (string.Equals(currentItem.ETag, item.ETag) is false)
+            {
+                throw new CommandException(HttpStatusCode.Conflict);
+            }
 
-        // return
-        return processedItem;
+            // update in the backing store
+            _items[itemKey] = processedItem;
+
+            _events.Add(processedItemEvent);
+
+            // return
+            return await Task.FromResult(processedItem);
+        }
+        finally
+        {
+            // unlock
+            _lock.ExitWriteLock();
+        }
     }
 
     /// <summary>
@@ -170,6 +196,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         ExpressionConverter<TInterface, TItem> expressionConverter,
         Func<TItem, IQueryResult<TInterface>> convertToQueryResult)
     {
+        // deferred execution, so do not need to lock
         var queryable = _items.Values
             .AsQueryable()
             .Where(i => i.TypeName == TypeName)
@@ -177,19 +204,38 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
 
         return new InMemoryQueryCommand(
             expressionConverter: expressionConverter,
+            queryableLock: _lock,
             queryable: queryable,
             convertToQueryResult: convertToQueryResult);
     }
 
     internal void Clear()
     {
-        _items.Clear();
-        _events.Clear();
+        try
+        {
+            _lock.EnterWriteLock();
+
+            _items = [];
+            _events = [];
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
     internal ItemEvent<TItem>[] GetEvents()
     {
-        return _events.ToArray();
+        try
+        {
+            _lock.EnterReadLock();
+
+            return _events.ToArray();
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
     private static T Clone<T>(
@@ -231,6 +277,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
 
     private class InMemoryQueryCommand(
         ExpressionConverter<TInterface, TItem> expressionConverter,
+        ReaderWriterLockSlim queryableLock,
         IQueryable<TItem> queryable,
         Func<TItem, IQueryResult<TInterface>> convertToQueryResult)
         : QueryCommand<TInterface, TItem>(expressionConverter, queryable)
@@ -243,11 +290,22 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         protected override async IAsyncEnumerable<IQueryResult<TInterface>> ExecuteAsync(
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            foreach (var item in GetQueryable().AsEnumerable())
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                // lock
+                queryableLock.EnterReadLock();
 
-                yield return await Task.FromResult(convertToQueryResult(item));
+                foreach (var item in GetQueryable().AsEnumerable())
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    yield return await Task.FromResult(convertToQueryResult(item));
+                }
+            }
+            finally
+            {
+                // unlock
+                queryableLock.ExitReadLock();
             }
         }
     }
