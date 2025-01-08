@@ -202,9 +202,7 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
 
         if (exceptions.Length is not 0)
         {
-            throw new CommandException(
-                httpStatusCode: HttpStatusCode.BadRequest,
-                innerException: new AggregateException(exceptions));
+            throw new AggregateException(exceptions);
         }
 
         // get the items and return
