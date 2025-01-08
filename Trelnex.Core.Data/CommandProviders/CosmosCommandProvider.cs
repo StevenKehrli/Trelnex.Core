@@ -154,6 +154,91 @@ internal class CosmosCommandProvider<TInterface, TItem>(
     }
 
     /// <summary>
+    /// Saves a batch of items in the backing data store as an asynchronous operation.
+    /// </summary>
+    /// <param name="partitionKey">The partition key of the batch.</param>
+    /// <param name="batchItems">The batch of items to save.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
+    /// <returns>The items that were updated.</returns>
+    protected override async Task<TItem[]> SaveBatchAsync(
+        string partitionKey,
+        BatchItem<TInterface, TItem>[] batchItems,
+        CancellationToken cancellationToken = default)
+    {
+        // create the batch operation
+        var batch = container
+            .CreateTransactionalBatch(
+                new PartitionKey(partitionKey));
+
+        // add the items to the batch
+        foreach (var batchItem in batchItems)
+        {
+            switch (batchItem.SaveAction)
+            {
+                case SaveAction.CREATED:
+
+                    batch.CreateItem(batchItem.Item);
+
+                    break;
+
+                case SaveAction.UPDATED:
+                case SaveAction.DELETED:
+
+                    var requestOptions = new TransactionalBatchItemRequestOptions
+                    {
+                        IfMatchEtag = batchItem.Item.ETag
+                    };
+
+                    batch.ReplaceItem(
+                        id: batchItem.Item.Id,
+                        item: batchItem.Item,
+                        requestOptions: requestOptions);
+
+                    break;
+            }
+        }
+
+        // add the events to the batch
+        foreach (var batchItem in batchItems)
+        {
+            batch.CreateItem(batchItem.ItemEvent);
+        }
+
+        try
+        {
+            // execute the batch
+            using var batchResponse = await batch.ExecuteAsync(cancellationToken);
+
+            // check for any failures
+            var exceptions = batchResponse
+                .Where(r => r.IsSuccessStatusCode is false)
+                .Select(r => new CommandException(r.StatusCode))
+                .ToArray();
+
+            if (exceptions.Length is not 0)
+            {
+                throw new CommandException(
+                    httpStatusCode: HttpStatusCode.BadRequest,
+                    innerException: new AggregateException(exceptions));
+            }
+
+            // get the items and return
+            var updatedItems = new TItem[batchItems.Length];
+
+            for (var index = 0; index < batchItems.Length; index++)
+            {
+                updatedItems[index] = batchResponse.GetOperationResultAtIndex<TItem>(index).Resource;
+            }
+
+            return updatedItems;
+        }
+        catch (CosmosException ce)
+        {
+            throw new CommandException(ce.StatusCode, ce.Message);
+        }
+    }
+
+    /// <summary>
     /// Create an instance of the <see cref="IQueryCommand{Interface}"/>.
     /// </summary>
     /// <param name="expressionConverter">The <see cref="ExpressionConverter{TInterface,TItem}"/> to convert an expression using a TInterface to an expression using a TItem.</param>

@@ -29,17 +29,17 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     /// <summary>
     /// An exclusive lock to ensure that only one operation that modifies the backing store is in progress at a time
     /// </summary>
-    private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+    private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
 
     /// <summary>
     /// The backing store of items
     /// </summary>
-    private readonly Dictionary<string, TItem> _items = [];
+    private Dictionary<string, TItem> _items = [];
 
     /// <summary>
     /// The backing store of events
     /// </summary>
-    private readonly List<ItemEvent<TItem>> _events = [];
+    private List<ItemEvent<TItem>> _events = [];
 
     /// <summary>
     /// The json serializer options
@@ -187,6 +187,85 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     }
 
     /// <summary>
+    /// Saves a batch of items in the backing data store as an asynchronous operation.
+    /// </summary>
+    /// <param name="partitionKey">The partition key of the batch.</param>
+    /// <param name="batchItems">The batch of items to save.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
+    /// <returns>The items that were updated.</returns>
+    protected override async Task<TItem[]> SaveBatchAsync(
+        string partitionKey,
+        BatchItem<TInterface, TItem>[] batchItems,
+        CancellationToken cancellationToken = default)
+    {
+        // lock
+        _lock.EnterWriteLock();
+
+        // backup the backing store
+        var itemsBackup = _items.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value);
+        
+        var eventsBackup = _events.ToList();
+
+        // save the batch items
+        var saveResults = new SaveResult[batchItems.Length];
+
+        for (int index = 0; index < batchItems.Length; index++)
+        {
+            var batchItem = batchItems[index];
+
+            try
+            {
+                // save
+                var updatedItem = await Save(
+                    batchItem: batchItem,
+                    cancellationToken: cancellationToken);
+
+                saveResults[index] = new SaveResult(
+                    Item: updatedItem,
+                    Exception: null);
+            }
+            catch (CommandException ex)
+            {
+                saveResults[index] = new SaveResult(
+                    Item: null,
+                    Exception: ex);
+            }
+        }
+
+        // check for any failures
+        var exceptions = saveResults
+            .Where(r => r.Exception is not null)
+            .Select(r => r.Exception!)
+            .ToArray();
+
+        if (exceptions.Length is not 0)
+        {
+            // reset the backing store
+            _items = itemsBackup;
+            _events = eventsBackup;
+
+            throw new CommandException(
+                httpStatusCode: HttpStatusCode.BadRequest,
+                innerException: new AggregateException(exceptions));
+        }
+
+        // get the items and return
+        var updatedItems = new TItem[batchItems.Length];
+
+        for (var index = 0; index < batchItems.Length; index++)
+        {
+            updatedItems[index] = saveResults[index].Item!;
+        }
+
+        // unlock
+        _lock.ExitWriteLock();
+
+        return await Task.FromResult(updatedItems);
+    }
+
+    /// <summary>
     /// Create an instance of the <see cref="IQueryCommand{Interface}"/>.
     /// </summary>
     /// <param name="expressionConverter">The <see cref="ExpressionConverter{TInterface,TItem}"/> to convert an expression using a TInterface to an expression using a TItem.</param>
@@ -215,8 +294,8 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         {
             _lock.EnterWriteLock();
 
-            _items.Clear();
-            _events.Clear();
+            _items = [];
+            _events = [];
         }
         finally
         {
@@ -235,6 +314,30 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         finally
         {
             _lock.ExitReadLock();
+        }
+    }
+
+    private async Task<TItem> Save(
+        BatchItem<TInterface, TItem> batchItem,
+        CancellationToken cancellationToken)
+    {
+        switch (batchItem.SaveAction)
+        {
+            case SaveAction.CREATED:
+                return await CreateItemAsync(
+                    item: batchItem.Item,
+                    itemEvent: batchItem.ItemEvent,
+                    cancellationToken: cancellationToken);
+
+            case SaveAction.UPDATED:
+            case SaveAction.DELETED:
+                return await UpdateItemAsync(
+                    item: batchItem.Item,
+                    itemEvent: batchItem.ItemEvent,
+                    cancellationToken: cancellationToken);
+
+            default:
+                throw new InvalidOperationException();
         }
     }
 
@@ -274,6 +377,10 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
 
         return clone;
     }
+
+    private record SaveResult(
+        TItem? Item,
+        CommandException? Exception);
 
     private class InMemoryQueryCommand(
         ExpressionConverter<TInterface, TItem> expressionConverter,

@@ -261,9 +261,9 @@ internal abstract partial class CommandProvider<TInterface, TItem>
     /// <returns>An <see cref="IBatchCommand{TInterface}"/> to batch the commands for the backing data store.</returns>
     public IBatchCommand<TInterface> Batch()
     {
-        return new BatchCommand<TInterface, TItem>();
+        return new BatchCommand<TInterface, TItem>(SaveBatchAsync);
     }
-    
+
     /// <summary>
     /// Creates a LINQ query for items from the backing data store.
     /// </summary>
@@ -316,6 +316,18 @@ internal abstract partial class CommandProvider<TInterface, TItem>
     protected abstract Task<TItem> UpdateItemAsync(
         TItem item,
         ItemEvent<TItem> itemEvent,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves a batch of items in the backing data store as an asynchronous operation.
+    /// </summary>
+    /// <param name="partitionKey">The partition key of the batch.</param>
+    /// <param name="batchItems">The batch of items to save.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
+    /// <returns>The items that were updated.</returns>
+    protected abstract Task<TItem[]> SaveBatchAsync(
+        string partitionKey,
+        BatchItem<TInterface, TItem>[] batchItems,
         CancellationToken cancellationToken = default);
 
     /// <summary>

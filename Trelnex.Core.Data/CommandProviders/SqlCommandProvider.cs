@@ -162,6 +162,63 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
     }
 
     /// <summary>
+    /// Saves a batch of items in the backing data store as an asynchronous operation.
+    /// </summary>
+    /// <param name="partitionKey">The partition key of the batch.</param>
+    /// <param name="batchItems">The batch of items to save.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
+    /// <returns>The items that were updated.</returns>
+    protected override async Task<TItem[]> SaveBatchAsync(
+        string partitionKey,
+        BatchItem<TInterface, TItem>[] batchItems,
+        CancellationToken cancellationToken = default)
+    {
+        // create the transaction
+        using var transactionScope = new TransactionScope();
+
+        // create the connection
+        using var dataConnection = new DataConnection(dataOptions);
+
+        // save the batch items
+        var saveResults = new SaveResult[batchItems.Length * 2];
+
+        for (int index = 0; index < batchItems.Length; index++)
+        {
+            saveResults[index] = Save(
+                dataConnection: dataConnection,
+                item: batchItems[index].Item,
+                saveAction: batchItems[index].SaveAction);
+
+            saveResults[index + batchItems.Length] = Save(
+                dataConnection: dataConnection,
+                itemEvent: batchItems[index].ItemEvent);
+        }
+
+        // check for any failures
+        var exceptions = saveResults
+            .Where(r => r.IsSuccessStatusCode is false)
+            .Select(r => new CommandException(r.StatusCode, r.Message))
+            .ToArray();
+
+        if (exceptions.Length is not 0)
+        {
+            throw new CommandException(
+                httpStatusCode: HttpStatusCode.BadRequest,
+                innerException: new AggregateException(exceptions));
+        }
+
+        // get the items and return
+        var updatedItems = new TItem[batchItems.Length];
+
+        for (var index = 0; index < batchItems.Length; index++)
+        {
+            updatedItems[index] = saveResults[index].Item!;
+        }
+
+        return await Task.FromResult(updatedItems);
+    }
+
+    /// <summary>
     /// Create an instance of the <see cref="IQueryCommand{Interface}"/>.
     /// </summary>
     /// <param name="expressionConverter">The <see cref="ExpressionConverter{TInterface,TItem}"/> to convert an expression using a TInterface to an expression using a TItem.</param>
@@ -183,6 +240,101 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
             dataOptions: dataOptions,
             convertToQueryResult: convertToQueryResult);
     }
+
+    /// <summary>
+    /// Saves the batch item in the backing data store.
+    /// </summary>
+    /// <param name="dataConnection">The <see cref="DataConnection"/> to the backing data store.</param>
+    /// <param name="item">The batch item to save.</param>
+    /// <param name="saveAction">The save action of the batch item.</param>
+    /// <returns>The <see cref="SqlResult"/> of the save operation.</returns>
+    private static SaveResult Save(
+        DataConnection dataConnection,
+        TItem item,
+        SaveAction saveAction)
+    {
+        try
+        {
+            switch (saveAction)
+            {
+                case SaveAction.CREATED:
+                    dataConnection.Insert(item);
+                    break;
+
+                case SaveAction.UPDATED:
+                case SaveAction.DELETED:
+                    dataConnection.Update(item);
+                    break;
+            }
+
+            // get the updated item
+            var updatedItem = dataConnection
+                .GetTable<TItem>()
+                .Where(i => i.Id == item.Id && i.PartitionKey == item.PartitionKey)
+                .First();
+
+            return new SaveResult(
+                StatusCode: HttpStatusCode.OK,
+                IsSuccessStatusCode: true,
+                Item: updatedItem,
+                Message: null);
+        }
+        catch (SqlException se)
+        {
+            HttpStatusCode statusCode = HttpStatusCode.InternalServerError;
+
+            if (PreconditionFailedRegex().IsMatch(se.Message))
+            {
+                statusCode = HttpStatusCode.PreconditionFailed;
+            }
+            else if (PrimaryKeyViolationRegex().IsMatch(se.Message))
+            {
+                statusCode = HttpStatusCode.Conflict;
+            }
+
+            return new SaveResult(
+                StatusCode: statusCode,
+                IsSuccessStatusCode: false,
+                Item: null,
+                Message: se.Message);
+        }        
+    }
+
+    /// <summary>
+    /// Saves the batch item event in the backing data store.
+    /// </summary>
+    /// <param name="dataConnection">The <see cref="DataConnection"/> to the backing data store.</param>
+    /// <param name="itemEvent">The batch item event to save.</param>
+    /// <returns>The <see cref="SaveResult"/> of the save operation.</returns>
+    private static SaveResult Save(
+        DataConnection dataConnection,
+        ItemEvent<TItem> itemEvent)
+    {
+        try
+        {
+            dataConnection.Insert(itemEvent);
+
+            return new SaveResult(
+                StatusCode: HttpStatusCode.OK,
+                IsSuccessStatusCode: true,
+                Item: null,
+                Message: null);
+        }
+        catch (SqlException se)
+        {
+            return new SaveResult(
+                StatusCode: HttpStatusCode.InternalServerError,
+                IsSuccessStatusCode: false,
+                Item: null,
+                Message: se.Message);
+        }
+    }
+
+    private record SaveResult(
+        HttpStatusCode StatusCode,
+        bool IsSuccessStatusCode,
+        TItem? Item,
+        string? Message);
 
     private class SqlQueryCommand(
         ExpressionConverter<TInterface, TItem> expressionConverter,
@@ -217,10 +369,9 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
         }
     }
 
-    [GeneratedRegex("^Violation of PRIMARY KEY constraint ")]
-    private static partial Regex PrimaryKeyViolationRegex();
-
-
     [GeneratedRegex("^Precondition Failed\\.$")]
     private static partial Regex PreconditionFailedRegex();
+
+    [GeneratedRegex("^Violation of PRIMARY KEY constraint ")]
+    private static partial Regex PrimaryKeyViolationRegex();
 }

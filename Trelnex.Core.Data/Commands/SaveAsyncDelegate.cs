@@ -6,3 +6,13 @@ internal delegate Task<TItem> SaveAsyncDelegate<TInterface, TItem>(
     CancellationToken cancellationToken)
     where TInterface : class, IBaseItem
     where TItem : BaseItem, TInterface;
+
+internal delegate IBatchCommand<TInterface> CreateBatchDelegate<TInterface>()
+    where TInterface : class, IBaseItem;
+
+internal delegate Task<TItem[]> SaveBatchAsyncDelegate<TInterface, TItem>(
+    string partitionKey,
+    BatchItem<TInterface, TItem>[] batchItems,
+    CancellationToken cancellationToken = default)
+    where TInterface : class, IBaseItem
+    where TItem : BaseItem, TInterface;
