@@ -29,7 +29,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     /// <summary>
     /// An exclusive lock to ensure that only one operation that modifies the backing store is in progress at a time
     /// </summary>
-    private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
+    private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.SupportsRecursion);
 
     /// <summary>
     /// The backing store of items
@@ -321,24 +321,22 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         BatchItem<TInterface, TItem> batchItem,
         CancellationToken cancellationToken)
     {
-        switch (batchItem.SaveAction)
+        return batchItem.SaveAction switch
         {
-            case SaveAction.CREATED:
-                return await CreateItemAsync(
+            SaveAction.CREATED =>
+                await CreateItemAsync(
                     item: batchItem.Item,
                     itemEvent: batchItem.ItemEvent,
-                    cancellationToken: cancellationToken);
+                    cancellationToken: cancellationToken),
 
-            case SaveAction.UPDATED:
-            case SaveAction.DELETED:
-                return await UpdateItemAsync(
+            SaveAction.UPDATED or SaveAction.DELETED =>
+                await UpdateItemAsync(
                     item: batchItem.Item,
                     itemEvent: batchItem.ItemEvent,
-                    cancellationToken: cancellationToken);
+                    cancellationToken: cancellationToken),
 
-            default:
-                throw new InvalidOperationException();
-        }
+            _ => throw new InvalidOperationException(),
+        };
     }
 
     private static T Clone<T>(
