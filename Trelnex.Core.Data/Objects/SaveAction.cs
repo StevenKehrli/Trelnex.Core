@@ -5,7 +5,7 @@ namespace Trelnex.Core.Data;
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SaveAction
 {
-    UNKNWON = 0,
+    UNKNOWN = 0,
     CREATED = 1,
     UPDATED = 2,
     DELETED = 3,

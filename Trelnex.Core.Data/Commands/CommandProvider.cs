@@ -63,7 +63,7 @@ public interface ICommandProvider<TInterface>
     /// Creates a LINQ query for items from the backing data store.
     /// </summary>
     /// <returns>The <see cref="IQueryCommand{TInterface}"/>.</returns>
-    public IQueryCommand<TInterface> Query();
+    IQueryCommand<TInterface> Query();
 }
 
 internal abstract partial class CommandProvider<TInterface, TItem>

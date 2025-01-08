@@ -48,7 +48,7 @@ internal sealed class ItemEvent<TItem>
     /// </summary>
     [JsonInclude]
     [JsonPropertyName("saveAction")]
-    public SaveAction SaveAction { get; private init; } = SaveAction.UNKNWON;
+    public SaveAction SaveAction { get; private init; } = SaveAction.UNKNOWN;
 
     /// <summary>
     /// The unique identifier that identifies the related item.
