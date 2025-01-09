@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -32,22 +33,9 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     private readonly ReaderWriterLockSlim _lock = new();
 
     /// <summary>
-    /// The backing store of items
+    /// The in memory backing store;
     /// </summary>
-    private Dictionary<string, TItem> _items = [];
-
-    /// <summary>
-    /// The backing store of events
-    /// </summary>
-    private List<ItemEvent<TItem>> _events = [];
-
-    /// <summary>
-    /// The json serializer options
-    /// </summary>
-    private static readonly JsonSerializerOptions _options = new()
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
+    private InMemoryStore _store = new();
 
     /// <summary>
     /// Creates a item in the backing data store as an asynchronous operation.
@@ -56,35 +44,21 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     /// <param name="itemEvent">The <see cref="ItemEvent"> that represents information regarding the item and the caller that invoked the save method.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The item that was created.</returns>
-    protected override Task<TItem> CreateItemAsync(
+    protected override async Task<TItem> CreateItemAsync(
         TItem item,
         ItemEvent<TItem> itemEvent,
         CancellationToken cancellationToken = default)
     {
-        // get the item key
-        var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(item);
-
-        // process the item
-        var processedItem = Process(item);
-
-        // process the event
-        var processedItemEvent = Process(itemEvent);
-
         try
         {
             // lock
             _lock.EnterWriteLock();
 
-            // add to the backing store
-            if (_items.TryAdd(itemKey, processedItem) is false)
-            {
-                throw new CommandException(HttpStatusCode.Conflict);
-            }
-
-            _events.Add(processedItemEvent);
+            // create in the backing store
+            var created = _store.CreateItemAsync(item, itemEvent);
 
             // return
-            return Task.FromResult(processedItem);
+            return await Task.FromResult(created);
         }
         finally
         {
@@ -100,30 +74,21 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     /// <param name="partitionKey">The partition key of the item.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The item that was read.</returns>
-    protected override Task<TItem?> ReadItemAsync(
+    protected override async Task<TItem?> ReadItemAsync(
         string id,
         string partitionKey,
         CancellationToken cancellationToken = default)
     {
-        // get the item key
-        var itemKey = GetItemKey(
-            partitionKey: partitionKey,
-            id: id);
-
         try
         {
             // lock
             _lock.EnterReadLock();
 
-            // get the item
-            if (_items.TryGetValue(itemKey, out var currentItem) is false)
-            {
-                // not found
-                return Task.FromResult<TItem?>(null);
-            }
+            // read from the backing store
+            var read = _store.ReadItem(id, partitionKey);
 
-            // clone the item and return
-            return Task.FromResult<TItem?>(result: Clone(currentItem));
+            // return
+            return await Task.FromResult<TItem?>(read);
         }
         finally
         {
@@ -144,40 +109,16 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         ItemEvent<TItem> itemEvent,
         CancellationToken cancellationToken = default)
     {
-        // get the item key
-        var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(item);
-
-        // process the item
-        var processedItem = Process(item);
-
-        // process the event
-        var processedItemEvent = Process(itemEvent);
-
         try
         {
             // lock
             _lock.EnterWriteLock();
 
-            // get the item
-            if (_items.TryGetValue(itemKey, out var currentItem) is false)
-            {
-                // not found
-                throw new CommandException(HttpStatusCode.NotFound);
-            }
-
-            // check the version (ETag) is unchanged
-            if (string.Equals(currentItem.ETag, item.ETag) is false)
-            {
-                throw new CommandException(HttpStatusCode.Conflict);
-            }
-
-            // update in the backing store
-            _items[itemKey] = processedItem;
-
-            _events.Add(processedItemEvent);
+            // updated the item
+            var updated = _store.UpdateItem(item, itemEvent);
 
             // return
-            return await Task.FromResult(processedItem);
+            return await Task.FromResult(updated);
         }
         finally
         {
@@ -197,7 +138,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         Func<TItem, IQueryResult<TInterface>> convertToQueryResult)
     {
         // deferred execution, so do not need to lock
-        var queryable = _items.Values
+        var queryable = _store
             .AsQueryable()
             .Where(i => i.TypeName == TypeName)
             .Where(i => i.IsDeleted == null || i.IsDeleted == false);
@@ -215,8 +156,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         {
             _lock.EnterWriteLock();
 
-            _items = [];
-            _events = [];
+            _store = new();
         }
         finally
         {
@@ -230,22 +170,12 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         {
             _lock.EnterReadLock();
 
-            return _events.ToArray();
+            return _store.GetEvents();
         }
         finally
         {
             _lock.ExitReadLock();
         }
-    }
-
-    private static T Clone<T>(
-        T baseItem) where T : BaseItem
-    {
-        // serialize to json string
-        var jsonString = JsonSerializer.Serialize(baseItem, _options);
-
-        // deserialize back to type
-        return JsonSerializer.Deserialize<T>(jsonString)!;
     }
 
     private static string GetItemKey(
@@ -261,18 +191,6 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         string id)
     {
         return $"{partitionKey}:{id}";
-    }
-
-    private static T Process<T>(
-        T baseItem) where T : BaseItem
-    {
-        // clone
-        var clone = Clone(baseItem);
-
-        // set a new etag
-        clone.ETag = Guid.NewGuid().ToString();
-
-        return clone;
     }
 
     private class InMemoryQueryCommand(
@@ -307,6 +225,207 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
                 // unlock
                 queryableLock.ExitReadLock();
             }
+        }
+    }
+
+    /// <summary>
+    /// Represents an item or event that has been serialized to a json string.
+    /// </summary>
+    /// <typeparam name="T">The type of the item or event.</typeparam>
+    private class BaseSerialized<T> where T : BaseItem
+    {
+        /// <summary>
+        /// The json serializer options
+        /// </summary>
+        private static readonly JsonSerializerOptions _options = new()
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        };
+
+        private string _jsonString = null!;
+        private string _eTag = null!;
+
+        /// <summary>
+        /// Gets the resource.
+        /// </summary>
+        public T Resource
+        {
+            get
+            {
+                // deserialize to the resource
+                var resource = JsonSerializer.Deserialize<T>(_jsonString, _options)!;
+
+                // set the etag
+                resource.ETag = _eTag;
+
+                // return the resource
+                return resource;
+            }
+        }
+
+        /// <summary>
+        /// Gets the ETag of the resource.
+        /// </summary>
+        public string ETag => _eTag;
+
+        protected static TSerialized BaseCreate<TSerialized>(
+            T resource) where TSerialized : BaseSerialized<T>, new()
+        {
+            // create an instance of TSerialized
+            var serialized = new TSerialized()
+            {
+                // serialize to a json string
+                _jsonString = JsonSerializer.Serialize(resource, _options),
+
+                // create a new ETag
+                _eTag = Guid.NewGuid().ToString(),
+            };
+
+            return serialized;
+        }
+    }
+
+    /// <summary>
+    /// Represents an item that has been serialized to a json string.
+    /// </summary>
+    /// <param name="jsonString">The serialized json string of the item.</param>
+    /// <param name="eTag">The ETag of the item.</param>
+    private class SerializedItem
+        : BaseSerialized<TItem>
+    {
+        public static SerializedItem Create(
+            TItem item) => BaseCreate<SerializedItem>(item);
+    }
+
+    /// <summary>
+    /// Represents an event that has been serialized to a json string.
+    /// </summary>
+    private class SerializedEvent
+        : BaseSerialized<ItemEvent<TItem>>
+    {
+        public static SerializedEvent Create(
+            ItemEvent<TItem> itemEvent) => BaseCreate<SerializedEvent>(itemEvent);
+    }
+
+    private class InMemoryStore : IEnumerable<TItem>
+    {
+        /// <summary>
+        /// The backing store of items
+        /// </summary>
+        private readonly Dictionary<string, SerializedItem> _items = [];
+
+        /// <summary>
+        /// The backing store of events
+        /// </summary>
+        private readonly List<SerializedEvent> _events = [];
+
+        /// <summary>
+        /// Creates a item in the backing data store.
+        /// </summary>
+        /// <param name="item">The item to create.</param>
+        /// <param name="itemEvent">The <see cref="ItemEvent"> that represents information regarding the item and the caller that invoked the save method.</param>
+        /// <returns>The item that was created.</returns>
+        public TItem CreateItemAsync(
+            TItem item,
+            ItemEvent<TItem> itemEvent)
+        {
+            // get the item key
+            var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(item);
+
+            // serialize the item and add to the backing store
+            var serializedItem = SerializedItem.Create(item);
+            if (_items.TryAdd(itemKey, serializedItem) is false)
+            {
+                throw new CommandException(HttpStatusCode.Conflict);
+            }
+
+            // serialize the event and add to the backing store
+            var serializedEvent = SerializedEvent.Create(itemEvent);
+            _events.Add(serializedEvent);
+
+            return serializedItem.Resource;
+        }
+
+        /// <summary>
+        /// Reads a item from the backing data store.
+        /// </summary>
+        /// <param name="id">The id of the item.</param>
+        /// <param name="partitionKey">The partition key of the item.</param>
+        /// <returns>The item that was read.</returns>
+        public TItem? ReadItem(
+            string id,
+            string partitionKey)
+        {
+            // get the item key
+            var itemKey = GetItemKey(
+                partitionKey: partitionKey,
+                id: id);
+
+            // get the item
+            if (_items.TryGetValue(itemKey, out var serializedItem) is false)
+            {
+                // not found
+                return null;
+            }
+
+            // return
+            return serializedItem.Resource;
+        }
+
+        /// <summary>
+        /// Updates an item in the backing data store.
+        /// </summary>
+        /// <param name="item">The item to update.</param>
+        /// <param name="itemEvent">The <see cref="ItemEvent"> that represents information regarding the item and the caller that invoked the save method.</param>
+        /// <returns>The item that was updated.</returns>
+        public TItem UpdateItem(
+            TItem item,
+            ItemEvent<TItem> itemEvent)
+        {
+            // get the item key
+            var itemKey = InMemoryCommandProvider<TInterface, TItem>.GetItemKey(item);
+
+            // get the item
+            if (_items.TryGetValue(itemKey, out var serializedItem) is false)
+            {
+                // not found
+                throw new CommandException(HttpStatusCode.NotFound);
+            }
+
+            // check the version (ETag) is unchanged
+            if (string.Equals(serializedItem.ETag, item.ETag) is false)
+            {
+                throw new CommandException(HttpStatusCode.Conflict);
+            }
+
+            // serialize the item and update in the backing store
+            serializedItem = SerializedItem.Create(item);
+            _items[itemKey] = serializedItem;
+
+            // serialize the event and add to the backing store
+            var serializedEvent = SerializedEvent.Create(itemEvent);
+            _events.Add(serializedEvent);
+
+            // return
+            return serializedItem.Resource;
+        }
+
+        public ItemEvent<TItem>[] GetEvents()
+        {
+            return _events.Select(se => se.Resource).ToArray();
+        }
+
+        public IEnumerator<TItem> GetEnumerator()
+        {
+            foreach (var serializedItem in _items.Values)
+            {
+                yield return serializedItem.Resource;
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
     }
 }
