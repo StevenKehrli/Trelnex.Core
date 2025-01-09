@@ -122,18 +122,18 @@ internal class SaveCommand<TInterface, TItem>
                 changes: GetPropertyChanges(),
                 requestContext: requestContext);
 
-            // save the item - get the updated item
-            var updatedItem = await _saveAsyncDelegate(
-                item: _item,
-                itemEvent: itemEvent,
+            // save the item
+            var saveContext = new SaveContext<TInterface, TItem>(
+                Item: _item,
+                Event: itemEvent,
+                SaveAction: _saveAction);
+
+            _item = await _saveAsyncDelegate(
+                saveContext: saveContext,
                 cancellationToken: cancellationToken);
 
             // create the updated proxy over the updated item
-            var updatedProxy = ItemProxy<TInterface, TItem>.Create(OnInvoke);
-
-            // set the updated item and proxy
-            _item = updatedItem;
-            _proxy = updatedProxy;
+            _proxy = ItemProxy<TInterface, TItem>.Create(OnInvoke);
             _isReadOnly = true;
 
             // null out the saveAsyncDelegate so we know that we have already saved and are no longer valid
@@ -141,7 +141,7 @@ internal class SaveCommand<TInterface, TItem>
 
             // create the read result and return
             return ReadResult<TInterface, TItem>.Create(
-                item: updatedItem,
+                item: _item,
                 validateAsyncDelegate: _validateAsyncDelegate);
         }
         finally

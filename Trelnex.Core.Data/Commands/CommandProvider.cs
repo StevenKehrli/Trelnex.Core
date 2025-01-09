@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.RegularExpressions;
 using FluentValidation;
 using FluentValidation.Results;
@@ -97,6 +98,16 @@ internal abstract partial class CommandProvider<TInterface, TItem>
     private readonly CommandOperations _commandOperations;
 
     /// <summary>
+    /// The delegate to validate and save the item.
+    /// </summary>
+    private readonly SaveAsyncDelegate<TInterface, TItem> _saveAsyncDelegate;
+
+    /// <summary>
+    /// The delegate to validate and save a batch of items.
+    /// </summary>
+    private readonly SaveBatchAsyncDelegate<TInterface, TItem>? _saveBatchAsyncDelegate;
+
+    /// <summary>
     /// The type name of the item - used for <see cref="BaseItem.TypeName"/>.
     /// </summary>
     protected string TypeName => _typeName;
@@ -136,6 +147,49 @@ internal abstract partial class CommandProvider<TInterface, TItem>
 
         // the command operations allowed by this provider
         _commandOperations = commandOperations ?? CommandOperations.Update;
+
+        _saveAsyncDelegate = (saveContext, cancellationToken) =>
+        {
+            if (string.Equals(saveContext.Event.PartitionKey, saveContext.Item.PartitionKey) is false)
+            {
+                throw new CommandException(
+                    httpStatusCode: HttpStatusCode.BadRequest,
+                    message: "The PartitionKey for the itemEvent does not match the one specified for the item.");
+            }
+
+            return SaveItemAsync(saveContext, cancellationToken);
+        };
+
+        _saveBatchAsyncDelegate = (partitionKey, saveContexts, cancellationToken) =>
+        {
+            // check the partition keys
+            var partitionKeyCheck = (SaveContext<TInterface, TItem> saveContext) =>
+                string.Equals(saveContext.Item.PartitionKey, partitionKey) &&
+                string.Equals(saveContext.Event.PartitionKey, saveContext.Item.PartitionKey);
+
+            // if any of the items do not have the correct partition key, return a bad request
+            if (saveContexts.Any(saveContext => partitionKeyCheck(saveContext)) is false)
+            {
+                // allocate the results
+                var saveResults = new SaveResult<TInterface, TItem>[saveContexts.Length];
+
+                for (int index = 0; index < saveContexts.Length; index++)
+                {
+                    var saveContext = saveContexts[index];
+
+                    // if the partition key does match, return a failed dependency; otherwise, return a bad request
+                    var httpStatusCode = partitionKeyCheck(saveContext)
+                        ? HttpStatusCode.FailedDependency
+                        : HttpStatusCode.BadRequest;
+
+                    saveResults[index] = new SaveResult<TInterface, TItem>(httpStatusCode, null);
+                }
+
+                return Task.FromResult(saveResults);
+            }
+
+            return SaveBatchAsync(partitionKey, saveContexts, cancellationToken);
+        };
     }
 
     /// <summary>
@@ -166,7 +220,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
             isReadOnly: false,
             validateAsyncDelegate: ValidateAsync,
             saveAction: SaveAction.CREATED,
-            saveAsyncDelegate: CreateItemAsync);
+            saveAsyncDelegate: _saveAsyncDelegate);
     }
 
     /// <summary>
@@ -268,18 +322,6 @@ internal abstract partial class CommandProvider<TInterface, TItem>
     }
 
     /// <summary>
-    /// Creates a item in the backing data store as an asynchronous operation.
-    /// </summary>
-    /// <param name="item">The item to create.</param>
-    /// <param name="itemEvent">The <see cref="ItemEvent"> that represents information regarding the item and the caller that invoked the save method.</param>
-    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
-    /// <returns>The item that was created.</returns>
-    protected abstract Task<TItem> CreateItemAsync(
-        TItem item,
-        ItemEvent<TItem> itemEvent,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Reads a item from the backing data store as an asynchronous operation.
     /// </summary>
     /// <param name="id">The id of the item.</param>
@@ -292,15 +334,25 @@ internal abstract partial class CommandProvider<TInterface, TItem>
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Updates a item in the backing data store as an asynchronous operation.
+    /// Saves a item in the backing data store as an asynchronous operation.
     /// </summary>
-    /// <param name="item">The item to update.</param>
-    /// <param name="itemEvent">The <see cref="ItemEvent"> that represents information regarding the item and the caller that invoked the save method.</param>
+    /// <param name="saveContext">The context with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
-    /// <returns>The item that was updated.</returns>
-    protected abstract Task<TItem> UpdateItemAsync(
-        TItem item,
-        ItemEvent<TItem> itemEvent,
+    /// <returns>The item that was saved.</returns>
+    protected abstract Task<TItem> SaveItemAsync(
+        SaveContext<TInterface, TItem> saveContext,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves a batch of items in the backing data store as an asynchronous operation.
+    /// </summary>
+    /// <param name="partitionKey">The partition key of the batch.</param>
+    /// <param name="saveContexts">The batch of contexts with item and event to save.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
+    /// <returns>The results of the batch operation.</returns>
+    protected abstract Task<SaveResult<TInterface, TItem>[]> SaveBatchAsync(
+        string partitionKey,
+        SaveContext<TInterface, TItem>[] saveContexts,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -328,7 +380,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
             isReadOnly: true,
             validateAsyncDelegate: ValidateAsync,
             saveAction: SaveAction.DELETED,
-            saveAsyncDelegate: UpdateItemAsync);
+            saveAsyncDelegate: _saveAsyncDelegate);
     }
 
     /// <summary>
@@ -345,7 +397,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
             isReadOnly: false,
             validateAsyncDelegate: ValidateAsync,
             saveAction: SaveAction.UPDATED,
-            saveAsyncDelegate: UpdateItemAsync);
+            saveAsyncDelegate: _saveAsyncDelegate);
     }
 
     /// <summary>

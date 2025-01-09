@@ -23,58 +23,6 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
     where TItem : BaseItem, TInterface, new()
 {
     /// <summary>
-    /// Creates a item in the backing data store as an asynchronous operation.
-    /// </summary>
-    /// <param name="item">The item to create.</param>
-    /// <param name="itemEvent">The <see cref="ItemEvent"> that represents information regarding the item and the caller that invoked the save method.</param>
-    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
-    /// <returns>The item that was created.</returns>
-    protected override async Task<TItem> CreateItemAsync(
-        TItem item,
-        ItemEvent<TItem> itemEvent,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.Equals(item.PartitionKey, itemEvent.PartitionKey) is false)
-        {
-            throw new CommandException(HttpStatusCode.BadRequest, "The PartitionKey provided do not match.");
-        }
-
-        // create the transaction
-        using var transactionScope = new TransactionScope();
-
-        // create the connection
-        using var dataConnection = new DataConnection(dataOptions);
-
-        try
-        {
-            // item
-            dataConnection.Insert(item);
-
-            // event
-            dataConnection.Insert(itemEvent);
-
-            // get the created item
-            var created = dataConnection
-                .GetTable<TItem>()
-                .Where(i => i.Id == item.Id && i.PartitionKey == item.PartitionKey)
-                .First();
-
-            // commit the transaction
-            transactionScope.Complete();
-
-            return await Task.FromResult(created);
-        }
-        catch (SqlException se) when (PrimaryKeyViolationRegex().IsMatch(se.Message))
-        {
-            throw new CommandException(HttpStatusCode.Conflict);
-        }
-        catch (SqlException se)
-        {
-            throw new CommandException(HttpStatusCode.InternalServerError, se.Message);
-        }
-    }
-
-    /// <summary>
     /// Reads a item from the backing data store as an asynchronous operation.
     /// </summary>
     /// <param name="id">The id of the item.</param>
@@ -110,22 +58,15 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
     }
 
     /// <summary>
-    /// Updates a item in the backing data store as an asynchronous operation.
+    /// Saves a item in the backing data store as an asynchronous operation.
     /// </summary>
-    /// <param name="item">The item to update.</param>
-    /// <param name="itemEvent">The <see cref="ItemEvent"> that represents information regarding the item and the caller that invoked the save method.</param>
+    /// <param name="saveContext">The context with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
-    /// <returns>The item that was updated.</returns>
-    protected override async Task<TItem> UpdateItemAsync(
-        TItem item,
-        ItemEvent<TItem> itemEvent,
+    /// <returns>The item that was saved.</returns>
+    protected override async Task<TItem> SaveItemAsync(
+        SaveContext<TInterface, TItem> saveContext,
         CancellationToken cancellationToken = default)
     {
-        if (string.Equals(item.PartitionKey, itemEvent.PartitionKey) is false)
-        {
-            throw new CommandException(HttpStatusCode.BadRequest, "The PartitionKey provided do not match.");
-        }
-
         // create the transaction
         using var transactionScope = new TransactionScope();
 
@@ -134,31 +75,101 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
 
         try
         {
-            // item
-            dataConnection.Update(item);
-
-            // event
-            dataConnection.Insert(itemEvent);
-
-            // get the updated item
-            var updated = dataConnection
-                .GetTable<TItem>()
-                .Where(i => i.Id == item.Id && i.PartitionKey == item.PartitionKey)
-                .First();
+            // save the item
+            var saved = SaveItem(dataConnection, saveContext);
 
             // commit the transaction
             transactionScope.Complete();
 
-            return await Task.FromResult(updated);
-        }
-        catch (SqlException se) when (PreconditionFailedRegex().IsMatch(se.Message))
-        {
-            throw new CommandException(HttpStatusCode.PreconditionFailed);
+            return await Task.FromResult(saved);
         }
         catch (SqlException se)
         {
+            if (PreconditionFailedRegex().IsMatch(se.Message))
+            {
+                throw new CommandException(HttpStatusCode.PreconditionFailed);
+            }
+
+            if (PrimaryKeyViolationRegex().IsMatch(se.Message))
+            {
+                throw new CommandException(HttpStatusCode.Conflict);
+            }
+
             throw new CommandException(HttpStatusCode.InternalServerError, se.Message);
         }
+    }
+
+    /// <summary>
+    /// Saves a batch of items in the backing data store as an asynchronous operation.
+    /// </summary>
+    /// <param name="partitionKey">The partition key of the batch.</param>
+    /// <param name="saveContexts">The batch of contexts with item and event to save.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
+    /// <returns>The results of the batch operation.</returns>
+    protected override async Task<SaveResult<TInterface, TItem>[]> SaveBatchAsync(
+        string partitionKey,
+        SaveContext<TInterface, TItem>[] saveContexts,
+        CancellationToken cancellationToken = default)
+    {
+        // allocate the results
+        var saveResults = new SaveResult<TInterface, TItem>[saveContexts.Length];
+
+        // create the transaction
+        using var transactionScope = new TransactionScope();
+
+        // create the connection
+        using var dataConnection = new DataConnection(dataOptions);
+
+        // enumerate each item
+        for (var index = 0; index < saveContexts.Length; index++)
+        {
+            // check for if previous item failed
+            if (index > 0 && saveResults[index - 1].HttpStatusCode != HttpStatusCode.OK)
+            {
+                saveResults[index] =
+                    new SaveResult<TInterface, TItem>(
+                        HttpStatusCode.FailedDependency,
+                        null);
+
+                continue;
+            }
+
+            var saveContext = saveContexts[index];
+
+            try
+            {
+                // save the item
+                var saved = SaveItem(dataConnection, saveContext);
+
+                saveResults[index] =
+                    new SaveResult<TInterface, TItem>(
+                        HttpStatusCode.OK,
+                        saved);
+            }
+            catch (Exception ex) when (ex is CommandException || ex is InvalidOperationException || ex is SqlException)
+            {
+                // set the result to the exception status code
+                var httpStatusCode = ex is CommandException ce
+                    ? ce.HttpStatusCode
+                    : HttpStatusCode.InternalServerError;
+
+                saveResults[index] =
+                    new SaveResult<TInterface, TItem>(
+                        httpStatusCode,
+                        null);
+                
+                // abort any further processing
+                break;
+            }
+        }
+
+        // if the batch completed successfully, commit the transaction
+        if (saveResults.All(r => r.HttpStatusCode == HttpStatusCode.OK))
+        {
+            transactionScope.Complete();
+        }
+
+        return await Task.FromResult(saveResults);
     }
 
     /// <summary>
@@ -182,6 +193,41 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
             queryable: queryable,
             dataOptions: dataOptions,
             convertToQueryResult: convertToQueryResult);
+    }
+
+    /// <summary>
+    /// Save the item to the backing store.
+    /// </summary>
+    /// <param name="dataConnection">The data connection.</param>
+    /// <param name="saveContext">The context with item and event to save.</param>
+    /// <returns>The result of the save operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the <see cref="SaveAction"/> is not recognized.</exception>
+    private static TItem SaveItem(
+        DataConnection dataConnection,
+        SaveContext<TInterface, TItem> saveContext)
+    {
+        switch (saveContext.SaveAction)
+        {
+            case SaveAction.CREATED:
+                dataConnection.Insert(saveContext.Item);
+                break;
+
+            case SaveAction.UPDATED:
+            case SaveAction.DELETED:
+                dataConnection.Update(saveContext.Item);
+                break;
+
+            default:
+                throw new InvalidOperationException($"Unrecognized SaveAction: {saveContext.SaveAction}");
+        }
+
+        dataConnection.Insert(saveContext.Event);
+
+        // get the saved item
+        return dataConnection
+            .GetTable<TItem>()
+            .Where(i => i.Id == saveContext.Item.Id && i.PartitionKey == saveContext.Item.PartitionKey)
+            .First();
     }
 
     private class SqlQueryCommand(
