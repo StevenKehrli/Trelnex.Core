@@ -417,7 +417,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
         return await compositeValidator.ValidateAsync(item, cancellationToken);
     }
 
-    [GeneratedRegex("^[a-z]+[a-z-]*[a-z]+$")]
+    [GeneratedRegex(@"^[a-z]+[a-z-]*[a-z]+$")]
     private static partial Regex TypeRulesRegex();
 
     /// <summary>

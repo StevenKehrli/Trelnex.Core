@@ -263,10 +263,10 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
         }
     }
 
-    [GeneratedRegex("^Violation of PRIMARY KEY constraint ")]
+    [GeneratedRegex(@"^Violation of PRIMARY KEY constraint ")]
     private static partial Regex PrimaryKeyViolationRegex();
 
 
-    [GeneratedRegex("^Precondition Failed\\.$")]
+    [GeneratedRegex(@"^Precondition Failed\.$")]
     private static partial Regex PreconditionFailedRegex();
 }
