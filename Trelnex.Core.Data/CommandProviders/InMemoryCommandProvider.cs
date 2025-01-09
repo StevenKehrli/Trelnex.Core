@@ -70,11 +70,11 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     /// <summary>
     /// Saves a item in the backing data store as an asynchronous operation.
     /// </summary>
-    /// <param name="saveContext">The context with item and event to save.</param>
+    /// <param name="request">The save request with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The item that was saved.</returns>
     protected override async Task<TItem> SaveItemAsync(
-        SaveContext<TInterface, TItem> saveContext,
+        SaveRequest<TInterface, TItem> request,
         CancellationToken cancellationToken = default)
     {
         try
@@ -83,7 +83,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
             _lock.EnterWriteLock();
 
             // save the item
-            var saved = SaveItem(_store, saveContext);
+            var saved = SaveItem(_store, request);
 
             // return
             return await Task.FromResult(saved);
@@ -99,16 +99,16 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     /// Saves a batch of items in the backing data store as an asynchronous operation.
     /// </summary>
     /// <param name="partitionKey">The partition key of the batch.</param>
-    /// <param name="saveContexts">The batch of contexts with item and event to save.</param>
+    /// <param name="requests">The batch of save requests with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The results of the batch operation.</returns>
     protected override async Task<SaveResult<TInterface, TItem>[]> SaveBatchAsync(
         string partitionKey,
-        SaveContext<TInterface, TItem>[] saveContexts,
+        SaveRequest<TInterface, TItem>[] requests,
         CancellationToken cancellationToken = default)
     {
         // allocate the results
-        var saveResults = new SaveResult<TInterface, TItem>[saveContexts.Length];
+        var saveResults = new SaveResult<TInterface, TItem>[requests.Length];
 
         // lock
         _lock.EnterWriteLock();
@@ -117,7 +117,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         var batchStore = new InMemoryStore(_store);
 
         // enumerate each item
-        for (var index = 0; index < saveContexts.Length; index++)
+        for (var index = 0; index < requests.Length; index++)
         {
             // check for if previous item failed
             if (index > 0 && saveResults[index - 1].HttpStatusCode != HttpStatusCode.OK)
@@ -130,7 +130,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
                 continue;
             }
 
-            var saveContext = saveContexts[index];
+            var saveContext = requests[index];
 
             try
             {
@@ -238,20 +238,20 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     /// Save the item to the backing store.
     /// </summary>
     /// <param name="store">The backing store to save the item to.</param>
-    /// <param name="saveContext">The context with item and event to save.</param>
+    /// <param name="request">The save request with item and event to save.</param>
     /// <returns>The result of the save operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the <see cref="SaveAction"/> is not recognized.</exception>
     private static TItem SaveItem(
         InMemoryStore store,
-        SaveContext<TInterface, TItem> saveContext) => saveContext.SaveAction switch
+        SaveRequest<TInterface, TItem> request) => request.SaveAction switch
     {
         SaveAction.CREATED =>
-            store.CreateItem(saveContext.Item, saveContext.Event),
+            store.CreateItem(request.Item, request.Event),
 
         SaveAction.UPDATED or SaveAction.DELETED =>
-            store.UpdateItem(saveContext.Item, saveContext.Event),
+            store.UpdateItem(request.Item, request.Event),
 
-        _ => throw new InvalidOperationException($"Unrecognized SaveAction: {saveContext.SaveAction}")
+        _ => throw new InvalidOperationException($"Unrecognized SaveAction: {request.SaveAction}")
     };
 
     private class InMemoryQueryCommand(

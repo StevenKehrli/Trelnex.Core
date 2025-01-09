@@ -60,7 +60,7 @@ internal class BatchCommand<TInterface, TItem>(
         ISaveCommand<TInterface> saveCommand)
     {
         // ensure that the save command is of the correct type
-        if (saveCommand is not SaveCommand<TInterface, TItem> saveCommandImpl)
+        if (saveCommand is not SaveCommand<TInterface, TItem> sc)
         {
             throw new ArgumentException(
                 $"The {nameof(saveCommand)} must be of type {typeof(SaveCommand<TInterface, TItem>).Name}.",
@@ -71,7 +71,7 @@ internal class BatchCommand<TInterface, TItem>(
         _semaphore.Wait();
 
         // add the save command to the batch
-        _saveCommands.Add(saveCommandImpl);
+        _saveCommands.Add(sc);
 
         // release the exclusive lock
         _semaphore.Release();
@@ -83,7 +83,26 @@ internal class BatchCommand<TInterface, TItem>(
         IRequestContext requestContext,
         CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        // ensure that only one operation that modifies the batch is in progress at a time
+        _semaphore.Wait();
+
+        try
+        {
+            // validate the save commands
+            var validationResultTasks = _saveCommands
+                .Select(sc => sc.ValidateAsync(cancellationToken));
+
+            var validationResults = await Task.WhenAll(validationResultTasks);
+
+            validationResults.ValidateOrThrow<TItem>();
+
+            throw new NotImplementedException();
+        }
+        finally
+        {
+            // release the exclusive lock
+            _semaphore.Release();
+        }
     }
 
     public async Task<ValidationResult[]> ValidateAsync(CancellationToken cancellationToken)

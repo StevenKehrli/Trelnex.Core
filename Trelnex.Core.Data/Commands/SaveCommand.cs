@@ -123,14 +123,14 @@ internal class SaveCommand<TInterface, TItem>
                 requestContext: requestContext);
 
             // save the item
-            var saveContext = new SaveContext<TInterface, TItem>(
+            var request = new SaveRequest<TInterface, TItem>(
                 Item: _item,
                 Event: itemEvent,
                 SaveAction: _saveAction);
 
             _item = await _saveAsyncDelegate(
-                saveContext: saveContext,
-                cancellationToken: cancellationToken);
+                request,
+                cancellationToken);
 
             // create the updated proxy over the updated item
             _proxy = ItemProxy<TInterface, TItem>.Create(OnInvoke);

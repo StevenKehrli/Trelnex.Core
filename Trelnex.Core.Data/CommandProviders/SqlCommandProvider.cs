@@ -60,11 +60,11 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
     /// <summary>
     /// Saves a item in the backing data store as an asynchronous operation.
     /// </summary>
-    /// <param name="saveContext">The context with item and event to save.</param>
+    /// <param name="request">The save request with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The item that was saved.</returns>
     protected override async Task<TItem> SaveItemAsync(
-        SaveContext<TInterface, TItem> saveContext,
+        SaveRequest<TInterface, TItem> request,
         CancellationToken cancellationToken = default)
     {
         // create the transaction
@@ -76,7 +76,7 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
         try
         {
             // save the item
-            var saved = SaveItem(dataConnection, saveContext);
+            var saved = SaveItem(dataConnection, request);
 
             // commit the transaction
             transactionScope.Complete();
@@ -103,16 +103,16 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
     /// Saves a batch of items in the backing data store as an asynchronous operation.
     /// </summary>
     /// <param name="partitionKey">The partition key of the batch.</param>
-    /// <param name="saveContexts">The batch of contexts with item and event to save.</param>
+    /// <param name="requests">The batch of save requests with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The results of the batch operation.</returns>
     protected override async Task<SaveResult<TInterface, TItem>[]> SaveBatchAsync(
         string partitionKey,
-        SaveContext<TInterface, TItem>[] saveContexts,
+        SaveRequest<TInterface, TItem>[] requests,
         CancellationToken cancellationToken = default)
     {
         // allocate the results
-        var saveResults = new SaveResult<TInterface, TItem>[saveContexts.Length];
+        var saveResults = new SaveResult<TInterface, TItem>[requests.Length];
 
         // create the transaction
         using var transactionScope = new TransactionScope();
@@ -121,7 +121,7 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
         using var dataConnection = new DataConnection(dataOptions);
 
         // enumerate each item
-        for (var index = 0; index < saveContexts.Length; index++)
+        for (var index = 0; index < requests.Length; index++)
         {
             // check for if previous item failed
             if (index > 0 && saveResults[index - 1].HttpStatusCode != HttpStatusCode.OK)
@@ -134,7 +134,7 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
                 continue;
             }
 
-            var saveContext = saveContexts[index];
+            var saveContext = requests[index];
 
             try
             {
@@ -199,34 +199,34 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
     /// Save the item to the backing store.
     /// </summary>
     /// <param name="dataConnection">The data connection.</param>
-    /// <param name="saveContext">The context with item and event to save.</param>
+    /// <param name="request">The save request with item and event to save.</param>
     /// <returns>The result of the save operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the <see cref="SaveAction"/> is not recognized.</exception>
     private static TItem SaveItem(
         DataConnection dataConnection,
-        SaveContext<TInterface, TItem> saveContext)
+        SaveRequest<TInterface, TItem> request)
     {
-        switch (saveContext.SaveAction)
+        switch (request.SaveAction)
         {
             case SaveAction.CREATED:
-                dataConnection.Insert(saveContext.Item);
+                dataConnection.Insert(request.Item);
                 break;
 
             case SaveAction.UPDATED:
             case SaveAction.DELETED:
-                dataConnection.Update(saveContext.Item);
+                dataConnection.Update(request.Item);
                 break;
 
             default:
-                throw new InvalidOperationException($"Unrecognized SaveAction: {saveContext.SaveAction}");
+                throw new InvalidOperationException($"Unrecognized SaveAction: {request.SaveAction}");
         }
 
-        dataConnection.Insert(saveContext.Event);
+        dataConnection.Insert(request.Event);
 
         // get the saved item
         return dataConnection
             .GetTable<TItem>()
-            .Where(i => i.Id == saveContext.Item.Id && i.PartitionKey == saveContext.Item.PartitionKey)
+            .Where(i => i.Id == request.Item.Id && i.PartitionKey == request.Item.PartitionKey)
             .First();
     }
 

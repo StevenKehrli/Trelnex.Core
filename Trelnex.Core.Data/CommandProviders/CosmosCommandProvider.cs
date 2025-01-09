@@ -50,18 +50,18 @@ internal class CosmosCommandProvider<TInterface, TItem>(
     /// <summary>
     /// Saves a item in the backing data store as an asynchronous operation.
     /// </summary>
-    /// <param name="saveContext">The context with item and event to save.</param>
+    /// <param name="request">The save request with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The item that was saved.</returns>
     protected override async Task<TItem> SaveItemAsync(
-        SaveContext<TInterface, TItem> saveContext,
+        SaveRequest<TInterface, TItem> request,
         CancellationToken cancellationToken = default)
     {
         var batch = container.CreateTransactionalBatch(
-            new PartitionKey(saveContext.Item.PartitionKey));
+            new PartitionKey(request.Item.PartitionKey));
 
         // add the item to the batch
-        AddItem(batch, saveContext);
+        AddItem(batch, request);
 
         try
         {
@@ -89,25 +89,25 @@ internal class CosmosCommandProvider<TInterface, TItem>(
     /// Saves a batch of items in the backing data store as an asynchronous operation.
     /// </summary>
     /// <param name="partitionKey">The partition key of the batch.</param>
-    /// <param name="saveContexts">The batch of contexts with item and event to save.</param>
+    /// <param name="requests">The batch of save requests with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The results of the batch operation.</returns>
     protected override async Task<SaveResult<TInterface, TItem>[]> SaveBatchAsync(
         string partitionKey,
-        SaveContext<TInterface, TItem>[] saveContexts,
+        SaveRequest<TInterface, TItem>[] requests,
         CancellationToken cancellationToken = default)
     {
         // allocate the results
-        var saveResults = new SaveResult<TInterface, TItem>[saveContexts.Length];
+        var saveResults = new SaveResult<TInterface, TItem>[requests.Length];
 
         // create the batch operation
         var batch = container.CreateTransactionalBatch(
             new PartitionKey(partitionKey));
 
         // add the items to the batch
-        for (int index = 0; index < saveContexts.Length; index++)
+        for (int index = 0; index < requests.Length; index++)
         {
-            AddItem(batch, saveContexts[index]);
+            AddItem(batch, requests[index]);
         }
 
         try
@@ -115,7 +115,7 @@ internal class CosmosCommandProvider<TInterface, TItem>(
             // execute the batch
             using var response = await batch.ExecuteAsync(cancellationToken);
 
-            for (int index = 0; index < saveContexts.Length; index++)
+            for (int index = 0; index < requests.Length; index++)
             {
                 // get the returned item
                 var itemResponse = response.GetOperationResultAtIndex<TItem>(index);
@@ -169,28 +169,28 @@ internal class CosmosCommandProvider<TInterface, TItem>(
     /// Add the item to the batch.
     /// </summary>
     /// <param name="batch">The <see cref="TransactionalBatch"/> to add the item to.</param>
-    /// <param name="saveContext">The context with item and event to save.</param>
+    /// <param name="request">The save request with item and event to save.</param>
     /// <returns>The <see cref="TransactionalBatch"/>.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the <see cref="SaveAction"/> is not recognized.</exception>
     private static TransactionalBatch AddItem(
         TransactionalBatch batch,
-        SaveContext<TInterface, TItem> saveContext) => saveContext.SaveAction switch
+        SaveRequest<TInterface, TItem> request) => request.SaveAction switch
     {
         SaveAction.CREATED => batch
             .CreateItem(
-                item: saveContext.Item)
+                item: request.Item)
             .CreateItem(
-                item: saveContext.Event),
+                item: request.Event),
 
         SaveAction.UPDATED or SaveAction.DELETED => batch
             .ReplaceItem(
-                id: saveContext.Item.Id,
-                item: saveContext.Item,
-                requestOptions: new TransactionalBatchItemRequestOptions { IfMatchEtag = saveContext.Item.ETag })
+                id: request.Item.Id,
+                item: request.Item,
+                requestOptions: new TransactionalBatchItemRequestOptions { IfMatchEtag = request.Item.ETag })
             .CreateItem(
-                item: saveContext.Event),
+                item: request.Event),
 
-        _ => throw new InvalidOperationException($"Unrecognized SaveAction: {saveContext.SaveAction}")
+        _ => throw new InvalidOperationException($"Unrecognized SaveAction: {request.SaveAction}")
     };
 
     private class CosmosQueryCommand(

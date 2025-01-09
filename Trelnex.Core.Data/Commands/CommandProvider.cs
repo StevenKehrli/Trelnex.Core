@@ -148,37 +148,37 @@ internal abstract partial class CommandProvider<TInterface, TItem>
         // the command operations allowed by this provider
         _commandOperations = commandOperations ?? CommandOperations.Update;
 
-        _saveAsyncDelegate = (saveContext, cancellationToken) =>
+        _saveAsyncDelegate = (request, cancellationToken) =>
         {
-            if (string.Equals(saveContext.Event.PartitionKey, saveContext.Item.PartitionKey) is false)
+            if (string.Equals(request.Event.PartitionKey, request.Item.PartitionKey) is false)
             {
                 throw new CommandException(
                     httpStatusCode: HttpStatusCode.BadRequest,
                     message: "The PartitionKey for the itemEvent does not match the one specified for the item.");
             }
 
-            return SaveItemAsync(saveContext, cancellationToken);
+            return SaveItemAsync(request, cancellationToken);
         };
 
-        _saveBatchAsyncDelegate = (partitionKey, saveContexts, cancellationToken) =>
+        _saveBatchAsyncDelegate = (partitionKey, requests, cancellationToken) =>
         {
             // check the partition keys
-            var partitionKeyCheck = (SaveContext<TInterface, TItem> saveContext) =>
-                string.Equals(saveContext.Item.PartitionKey, partitionKey) &&
-                string.Equals(saveContext.Event.PartitionKey, saveContext.Item.PartitionKey);
+            var partitionKeyCheck = (SaveRequest<TInterface, TItem> request) =>
+                string.Equals(request.Item.PartitionKey, partitionKey) &&
+                string.Equals(request.Event.PartitionKey, request.Item.PartitionKey);
 
             // if any of the items do not have the correct partition key, return a bad request
-            if (saveContexts.Any(saveContext => partitionKeyCheck(saveContext)) is false)
+            if (requests.Any(request => partitionKeyCheck(request)) is false)
             {
                 // allocate the results
-                var saveResults = new SaveResult<TInterface, TItem>[saveContexts.Length];
+                var saveResults = new SaveResult<TInterface, TItem>[requests.Length];
 
-                for (int index = 0; index < saveContexts.Length; index++)
+                for (int index = 0; index < requests.Length; index++)
                 {
-                    var saveContext = saveContexts[index];
+                    var request = requests[index];
 
                     // if the partition key does match, return a failed dependency; otherwise, return a bad request
-                    var httpStatusCode = partitionKeyCheck(saveContext)
+                    var httpStatusCode = partitionKeyCheck(request)
                         ? HttpStatusCode.FailedDependency
                         : HttpStatusCode.BadRequest;
 
@@ -188,7 +188,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
                 return Task.FromResult(saveResults);
             }
 
-            return SaveBatchAsync(partitionKey, saveContexts, cancellationToken);
+            return SaveBatchAsync(partitionKey, requests, cancellationToken);
         };
     }
 
@@ -336,23 +336,23 @@ internal abstract partial class CommandProvider<TInterface, TItem>
     /// <summary>
     /// Saves a item in the backing data store as an asynchronous operation.
     /// </summary>
-    /// <param name="saveContext">The context with item and event to save.</param>
+    /// <param name="request">The save request with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The item that was saved.</returns>
     protected abstract Task<TItem> SaveItemAsync(
-        SaveContext<TInterface, TItem> saveContext,
+        SaveRequest<TInterface, TItem> request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Saves a batch of items in the backing data store as an asynchronous operation.
     /// </summary>
     /// <param name="partitionKey">The partition key of the batch.</param>
-    /// <param name="saveContexts">The batch of contexts with item and event to save.</param>
+    /// <param name="requests">The batch of save requests with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The results of the batch operation.</returns>
     protected abstract Task<SaveResult<TInterface, TItem>[]> SaveBatchAsync(
         string partitionKey,
-        SaveContext<TInterface, TItem>[] saveContexts,
+        SaveRequest<TInterface, TItem>[] requests,
         CancellationToken cancellationToken = default);
 
     /// <summary>
