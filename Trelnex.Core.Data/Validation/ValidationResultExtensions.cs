@@ -10,7 +10,7 @@ public static class ValidationResultExtensions
     {
         if (validationResult.IsValid) return;
 
-        var message = $"The {typeof(T)}' is not valid.";
+        var message = $"The '{typeof(T)}' is not valid.";
 
         // convert the errors to an array of key-value pairs
         // where the key is the property name and value is the validation error

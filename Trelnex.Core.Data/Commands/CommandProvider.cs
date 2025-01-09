@@ -428,7 +428,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
     private static AbstractValidator<TItem> CreateBaseItemValidator(
         string typeName)
     {
-        AbstractValidator<TItem> baseItemValidator = new InlineValidator<TItem>();
+        var baseItemValidator = new InlineValidator<TItem>();
 
         // id
         baseItemValidator.RuleFor(k => k.Id)
