@@ -132,7 +132,6 @@ internal class SaveCommand<TInterface, TItem>
                 request,
                 cancellationToken);
 
-            // create the updated proxy over the updated item
             _proxy = ItemProxy<TInterface, TItem>.Create(OnInvoke);
             _isReadOnly = true;
 
@@ -148,5 +147,68 @@ internal class SaveCommand<TInterface, TItem>
         {
             _semaphore.Release();
         }
+    }
+
+    /// <summary>
+    /// Acquire exclusive access to this command and its item. For use by <see cref="BatchCommand{TInterface, TItem}"/>.
+    /// </summary>
+    /// <param name="requestContext">The <see cref="IRequestContext"> that invoked this method.</param>
+    /// <param name="cancellationToken">The cancellation token to cancel the operation.</param>
+    /// <returns>A <see cref="SaveRequest{TInterface, TItem}"/> to add to the batch.</returns>
+    /// <exception cref="InvalidOperationException">The command is no longer valid.</exception>
+    public async Task<SaveRequest<TInterface, TItem>> Acquire(
+        IRequestContext requestContext,
+        CancellationToken cancellationToken = default)
+    {
+        // ensure that only one operation that modifies the item is in progress at a time
+        await _semaphore.WaitAsync(cancellationToken);
+
+        // check if already saved
+        if (_saveAsyncDelegate is null)
+        {
+            throw new InvalidOperationException("The Command is no longer valid because its SaveAsync method has already been called.");
+        }
+
+        // create the event
+        var itemEvent = ItemEvent<TItem>.Create(
+            related: _item,
+            saveAction: _saveAction,
+            changes: GetPropertyChanges(),
+            requestContext: requestContext);
+
+        return new SaveRequest<TInterface, TItem>(
+                Item: _item,
+                Event: itemEvent,
+                SaveAction: _saveAction);
+    }
+
+    /// <summary>
+    /// Update this command with the result of a batch save operation. For use by <see cref="BatchCommand{TInterface, TItem}"/>.
+    /// </summary>
+    /// <param name="item">The item that was saved.</param>
+    /// <returns>A <see cref="IReadResult{TInterface}"/> representing the saved item.</returns>
+    internal IReadResult<TInterface> Update(
+        TItem item)
+    {
+        // set the updated item and proxy
+        _item = item;
+        _proxy = ItemProxy<TInterface, TItem>.Create(OnInvoke);
+        _isReadOnly = true;
+
+        // null out the saveAsyncDelegate so we know that we have already saved and are no longer valid
+        _saveAsyncDelegate = null!;
+
+        // create the read result and return
+        return ReadResult<TInterface, TItem>.Create(
+            item: item,
+            validateAsyncDelegate: _validateAsyncDelegate);
+    }
+
+    /// <summary>
+    /// Release exclusive access to this command and its item. For use by <see cref="BatchCommand{TInterface, TItem}"/>.
+    /// </summary>
+    internal void Release()
+    {
+        _semaphore.Release();
     }
 }
