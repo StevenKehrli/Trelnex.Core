@@ -8,22 +8,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-[Trelnex.Core.Data] - Batch transactions.
+- OpenTelemetry
+- Support for other credential types: AWS, GCP, Okta, etc.
 
 ### Changed
 
+- Investigate change to `CredentialFactory` to support dependency injection and configuration through `IConfiguration`
+- Upload symbols to GitHub
+
 ### Deleted
+
+## [Trelnex.Core.Api:5.1.0] - 2025-01-10
+
+### Changed
+
+- Updated to [Trelnex.Core.Data:5.0.0].
+- Throw an `InvalidOperationException` is an `ICommandProvider<TInterface>` is registered multiple times.
 
 ## [Trelnex.Core.Data:5.1.0] - 2025-01-10
 
 ### Added
 
 - Added `IBatchCommand<TInterface>` to save a batch of `ISaveCommand<TInterface>`.
-
-## [Trelnex.Core.Data:5.0.1] - 2025-01-08
-
-### Changed
-
 - Concurrency updates and fixes to `InMemoryCommandProvider`.
 
 ## [Trelnex.Core.Api:5.0.0] - 2025-01-07
