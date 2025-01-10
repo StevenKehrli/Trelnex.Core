@@ -173,7 +173,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
                 // allocate the results
                 var saveResults = new SaveResult<TInterface, TItem>[requests.Length];
 
-                for (int index = 0; index < requests.Length; index++)
+                for (var index = 0; index < requests.Length; index++)
                 {
                     var request = requests[index];
 

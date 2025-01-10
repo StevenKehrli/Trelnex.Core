@@ -105,7 +105,7 @@ internal class CosmosCommandProvider<TInterface, TItem>(
             new PartitionKey(partitionKey));
 
         // add the items to the batch
-        for (int index = 0; index < requests.Length; index++)
+        for (var index = 0; index < requests.Length; index++)
         {
             AddItem(batch, requests[index]);
         }
@@ -115,7 +115,7 @@ internal class CosmosCommandProvider<TInterface, TItem>(
             // execute the batch
             using var response = await batch.ExecuteAsync(cancellationToken);
 
-            for (int index = 0; index < requests.Length; index++)
+            for (var index = 0; index < requests.Length; index++)
             {
                 // get the returned item
                 // the operation results are interleaved between the item and event, so:

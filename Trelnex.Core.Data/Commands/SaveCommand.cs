@@ -130,7 +130,7 @@ internal class SaveCommand<TInterface, TItem>
     /// <param name="cancellationToken">The cancellation token to cancel the operation.</param>
     /// <returns>A <see cref="SaveRequest{TInterface, TItem}"/> to add to the batch.</returns>
     /// <exception cref="InvalidOperationException">The command is no longer valid.</exception>
-    public async Task<SaveRequest<TInterface, TItem>> Acquire(
+    public async Task<SaveRequest<TInterface, TItem>> AcquireAsync(
         IRequestContext requestContext,
         CancellationToken cancellationToken = default)
     {

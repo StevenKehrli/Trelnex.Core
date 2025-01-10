@@ -76,7 +76,7 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
         try
         {
             // save the item
-            var saved = SaveItem(dataConnection, request);
+            var saved = await SaveItemAsync(dataConnection, request, cancellationToken);
 
             // commit the transaction
             transactionScope.Complete();
@@ -139,7 +139,7 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
             try
             {
                 // save the item
-                var saved = SaveItem(dataConnection, saveContext);
+                var saved = await SaveItemAsync(dataConnection, saveContext, cancellationToken);
 
                 saveResults[index] =
                     new SaveResult<TInterface, TItem>(
@@ -200,21 +200,23 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
     /// </summary>
     /// <param name="dataConnection">The data connection.</param>
     /// <param name="request">The save request with item and event to save.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
     /// <returns>The result of the save operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the <see cref="SaveAction"/> is not recognized.</exception>
-    private static TItem SaveItem(
+    private static async Task<TItem> SaveItemAsync(
         DataConnection dataConnection,
-        SaveRequest<TInterface, TItem> request)
+        SaveRequest<TInterface, TItem> request,
+        CancellationToken cancellationToken)
     {
         switch (request.SaveAction)
         {
             case SaveAction.CREATED:
-                dataConnection.Insert(request.Item);
+                await dataConnection.InsertAsync(obj: request.Item, token: cancellationToken);
                 break;
 
             case SaveAction.UPDATED:
             case SaveAction.DELETED:
-                dataConnection.Update(request.Item);
+                await dataConnection.UpdateAsync(obj: request.Item, token: cancellationToken);
                 break;
 
             default:
