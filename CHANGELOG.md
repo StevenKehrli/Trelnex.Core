@@ -14,6 +14,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Deleted
 
+## [Trelnex.Core.Data:5.1.0] - 2025-01-10
+
+### Added
+
+- Added `IBatchCommand<TInterface>` to save a batch of `ISaveCommand<TInterface>`.
+
+## [Trelnex.Core.Data:5.0.1] - 2025-01-08
+
+### Changed
+
+- Concurrency updates and fixes to `InMemoryCommandProvider`.
+
 ## [Trelnex.Core.Api:5.0.0] - 2025-01-07
 
 ### Added

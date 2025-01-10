@@ -38,36 +38,6 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     private InMemoryStore _store = new();
 
     /// <summary>
-    /// Creates a item in the backing data store as an asynchronous operation.
-    /// </summary>
-    /// <param name="item">The item to create.</param>
-    /// <param name="itemEvent">The <see cref="ItemEvent"> that represents information regarding the item and the caller that invoked the save method.</param>
-    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
-    /// <returns>The item that was created.</returns>
-    protected override async Task<TItem> CreateItemAsync(
-        TItem item,
-        ItemEvent<TItem> itemEvent,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            // lock
-            _lock.EnterWriteLock();
-
-            // create in the backing store
-            var created = _store.CreateItemAsync(item, itemEvent);
-
-            // return
-            return await Task.FromResult(created);
-        }
-        finally
-        {
-            // unlock
-            _lock.ExitWriteLock();
-        }
-    }
-
-    /// <summary>
     /// Reads a item from the backing data store as an asynchronous operation.
     /// </summary>
     /// <param name="id">The id of the item.</param>
@@ -98,15 +68,13 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     }
 
     /// <summary>
-    /// Updates a item in the backing data store as an asynchronous operation.
+    /// Saves a item in the backing data store as an asynchronous operation.
     /// </summary>
-    /// <param name="item">The item to update.</param>
-    /// <param name="itemEvent">The <see cref="ItemEvent"> that represents information regarding the item and the caller that invoked the save method.</param>
+    /// <param name="request">The save request with item and event to save.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
-    /// <returns>The item that was updated.</returns>
-    protected override async Task<TItem> UpdateItemAsync(
-        TItem item,
-        ItemEvent<TItem> itemEvent,
+    /// <returns>The item that was saved.</returns>
+    protected override async Task<TItem> SaveItemAsync(
+        SaveRequest<TInterface, TItem> request,
         CancellationToken cancellationToken = default)
     {
         try
@@ -114,17 +82,96 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
             // lock
             _lock.EnterWriteLock();
 
-            // updated the item
-            var updated = _store.UpdateItem(item, itemEvent);
+            // save the item
+            var saved = SaveItem(_store, request);
 
             // return
-            return await Task.FromResult(updated);
+            return await Task.FromResult(saved);
         }
         finally
         {
             // unlock
             _lock.ExitWriteLock();
         }
+    }
+
+    /// <summary>
+    /// Saves a batch of items in the backing data store as an asynchronous operation.
+    /// </summary>
+    /// <param name="partitionKey">The partition key of the batch.</param>
+    /// <param name="requests">The batch of save requests with item and event to save.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> representing request cancellation.</param>
+    /// <returns>The results of the batch operation.</returns>
+    protected override async Task<SaveResult<TInterface, TItem>[]> SaveBatchAsync(
+        string partitionKey,
+        SaveRequest<TInterface, TItem>[] requests,
+        CancellationToken cancellationToken = default)
+    {
+        // allocate the results
+        var saveResults = new SaveResult<TInterface, TItem>[requests.Length];
+
+        // lock
+        _lock.EnterWriteLock();
+
+        // create a copy of the existing backing store to use for the batch
+        var batchStore = new InMemoryStore(_store);
+
+        // enumerate each item
+        var saveRequestIndex = 0;
+        for ( ; saveRequestIndex < requests.Length; saveRequestIndex++)
+        {
+            var saveRequest = requests[saveRequestIndex];
+
+            try
+            {
+                // save the item
+                var saved = SaveItem(batchStore, saveRequest);
+
+                saveResults[saveRequestIndex] =
+                    new SaveResult<TInterface, TItem>(
+                        HttpStatusCode.OK,
+                        saved);
+            }
+            catch (Exception ex) when (ex is CommandException || ex is InvalidOperationException)
+            {
+                // set the result to the exception status code
+                var httpStatusCode = ex is CommandException commandEx
+                    ? commandEx.HttpStatusCode
+                    : HttpStatusCode.InternalServerError;
+
+                saveResults[saveRequestIndex] =
+                    new SaveResult<TInterface, TItem>(
+                        httpStatusCode,
+                        null);
+
+                break;
+            }
+        }
+
+        if (saveRequestIndex == requests.Length)
+        {
+            // the batch completed successfully, update the backing store
+            _store = batchStore;
+        }
+        else
+        {
+            // a save request failed
+            // update all other results to failed dependency
+            for (var saveResultIndex = 0; saveResultIndex < saveResults.Length; saveResultIndex++)
+            {
+                if (saveResultIndex == saveRequestIndex) continue;
+
+                saveResults[saveResultIndex] =
+                    new SaveResult<TInterface, TItem>(
+                        HttpStatusCode.FailedDependency,
+                        null);
+            }
+        }
+
+        // unlock
+        _lock.ExitWriteLock();
+
+        return await Task.FromResult(saveResults);
     }
 
     /// <summary>
@@ -192,6 +239,26 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
     {
         return $"{partitionKey}:{id}";
     }
+
+    /// <summary>
+    /// Save the item to the backing store.
+    /// </summary>
+    /// <param name="store">The backing store to save the item to.</param>
+    /// <param name="request">The save request with item and event to save.</param>
+    /// <returns>The result of the save operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the <see cref="SaveAction"/> is not recognized.</exception>
+    private static TItem SaveItem(
+        InMemoryStore store,
+        SaveRequest<TInterface, TItem> request) => request.SaveAction switch
+    {
+        SaveAction.CREATED =>
+            store.CreateItem(request.Item, request.Event),
+
+        SaveAction.UPDATED or SaveAction.DELETED =>
+            store.UpdateItem(request.Item, request.Event),
+
+        _ => throw new InvalidOperationException($"Unrecognized SaveAction: {request.SaveAction}")
+    };
 
     private class InMemoryQueryCommand(
         ExpressionConverter<TInterface, TItem> expressionConverter,
@@ -320,12 +387,26 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         private readonly List<SerializedEvent> _events = [];
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="InMemoryStore"/> class.
+        /// </summary>
+        /// <param name="store">The store to copy from.</param>
+        public InMemoryStore(
+            InMemoryStore? store = null)
+        {
+            if (store is not null)
+            {
+                _items = new Dictionary<string, SerializedItem>(store._items);
+                _events = new List<SerializedEvent>(store._events);
+            }
+        }
+
+        /// <summary>
         /// Creates a item in the backing data store.
         /// </summary>
         /// <param name="item">The item to create.</param>
         /// <param name="itemEvent">The <see cref="ItemEvent"> that represents information regarding the item and the caller that invoked the save method.</param>
         /// <returns>The item that was created.</returns>
-        public TItem CreateItemAsync(
+        public TItem CreateItem(
             TItem item,
             ItemEvent<TItem> itemEvent)
         {
