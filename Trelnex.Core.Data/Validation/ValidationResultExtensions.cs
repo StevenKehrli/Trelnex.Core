@@ -105,7 +105,7 @@ internal static partial class ValidationResultExtensions
                 StringComparison.Ordinal);
         }
 
-        [GeneratedRegex(@"^\[(?<index>\d+)\]\.(?<propertyName>.+)")]
+        [GeneratedRegex(@"^\[(?<index>\d+)\]\.(?<propertyName>.+)$")]
         private static partial Regex IndexedPropertyNameRegex();
     }
 }
