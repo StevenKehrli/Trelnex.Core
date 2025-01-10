@@ -53,11 +53,19 @@ public static class InMemoryCommandProviderExtensions
             where TInterface : class, IBaseItem
             where TItem : BaseItem, TInterface, new()
         {
+            if (services.Any(x => x.ServiceType == typeof(ICommandProvider<TInterface>)))
+            {
+                throw new InvalidOperationException(
+                    $"The CommandProvider<{typeof(TInterface).Name}> is already registered.");
+            }
+
             // create the command provider and inject it
             var commandProvider = factory.Create<TInterface, TItem>(
                 typeName: typeName,
                 validator: itemValidator,
                 commandOperations: commandOperations);
+
+            services.AddSingleton(commandProvider);
 
             object[] args =
             [
@@ -69,8 +77,6 @@ public static class InMemoryCommandProviderExtensions
             bootstrapLogger.LogWarning(
                 message: "Added InMemoryCommandProvider<{TInterface:l}, {TItem:l}>.",
                 args: args);
-
-            services.AddSingleton(commandProvider);
 
             return this;
         }

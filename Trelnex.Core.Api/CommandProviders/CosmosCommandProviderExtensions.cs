@@ -149,6 +149,12 @@ public static class CosmosCommandProvidersExtensions
                     nameof(typeName));
             }
 
+            if (services.Any(x => x.ServiceType == typeof(ICommandProvider<TInterface>)))
+            {
+                throw new InvalidOperationException(
+                    $"The CommandProvider<{typeof(TInterface).Name}> is already registered.");
+            }
+
             // create the command provider and inject
             var commandProvider = factory.Create<TInterface, TItem>(
                 containerId: containerId,
