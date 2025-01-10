@@ -104,44 +104,18 @@ internal class SaveCommand<TInterface, TItem>
 
         try
         {
-            // check if already saved
-            if (_saveAsyncDelegate is null)
-            {
-                throw new InvalidOperationException("The Command is no longer valid because its SaveAsync method has already been called.");
-            }
+            var request = CreateSaveRequest(requestContext);
 
             // validate the underlying item
             var validationResult = await ValidateAsync(cancellationToken);
-
             validationResult.ValidateOrThrow<TItem>();
 
-            // create the event
-            var itemEvent = ItemEvent<TItem>.Create(
-                related: _item,
-                saveAction: _saveAction,
-                changes: GetPropertyChanges(),
-                requestContext: requestContext);
-
             // save the item
-            var request = new SaveRequest<TInterface, TItem>(
-                Item: _item,
-                Event: itemEvent,
-                SaveAction: _saveAction);
-
-            _item = await _saveAsyncDelegate(
+            var item = await _saveAsyncDelegate(
                 request,
                 cancellationToken);
 
-            _proxy = ItemProxy<TInterface, TItem>.Create(OnInvoke);
-            _isReadOnly = true;
-
-            // null out the saveAsyncDelegate so we know that we have already saved and are no longer valid
-            _saveAsyncDelegate = null!;
-
-            // create the read result and return
-            return ReadResult<TInterface, TItem>.Create(
-                item: _item,
-                validateAsyncDelegate: _validateAsyncDelegate);
+            return Update(item);
         }
         finally
         {
@@ -163,23 +137,7 @@ internal class SaveCommand<TInterface, TItem>
         // ensure that only one operation that modifies the item is in progress at a time
         await _semaphore.WaitAsync(cancellationToken);
 
-        // check if already saved
-        if (_saveAsyncDelegate is null)
-        {
-            throw new InvalidOperationException("The Command is no longer valid because its SaveAsync method has already been called.");
-        }
-
-        // create the event
-        var itemEvent = ItemEvent<TItem>.Create(
-            related: _item,
-            saveAction: _saveAction,
-            changes: GetPropertyChanges(),
-            requestContext: requestContext);
-
-        return new SaveRequest<TInterface, TItem>(
-                Item: _item,
-                Event: itemEvent,
-                SaveAction: _saveAction);
+        return CreateSaveRequest(requestContext);
     }
 
     /// <summary>
@@ -210,5 +168,33 @@ internal class SaveCommand<TInterface, TItem>
     internal void Release()
     {
         _semaphore.Release();
+    }
+
+    /// <summary>
+    /// Create a save request.
+    /// </summary>
+    /// <param name="requestContext">The <see cref="IRequestContext"> that invoked this method.</param>
+    /// <returns>A <see cref="SaveRequest{TInterface, TItem}"/> representing the save request.</returns>
+    /// <exception cref="InvalidOperationException">The command is no longer valid.</exception>
+    private SaveRequest<TInterface, TItem> CreateSaveRequest(
+        IRequestContext requestContext)
+    {
+        // check if already saved
+        if (_saveAsyncDelegate is null)
+        {
+            throw new InvalidOperationException("The Command is no longer valid because its SaveAsync method has already been called.");
+        }
+
+        // create the event
+        var itemEvent = ItemEvent<TItem>.Create(
+            related: _item,
+            saveAction: _saveAction,
+            changes: GetPropertyChanges(),
+            requestContext: requestContext);
+
+        return new SaveRequest<TInterface, TItem>(
+            Item: _item,
+            Event: itemEvent,
+            SaveAction: _saveAction);
     }
 }
