@@ -230,6 +230,7 @@ The REST APIs expose five basic operations: create, read, update, delete, and qu
 These data access operations and the DTOs on which they operate are encapsulated in a command:
 
 - `ISaveCommand` for create, update, and delete
+- `IBatchCommand` for batch
 - `IReadResult` for read
 - `IQueryCommand` for query
 
@@ -241,10 +242,14 @@ An `ICommandProvider` exposes the commands against a backing data store. Trelnex
 
 The `ICommandProvider` interface defines five methods:
 
-- `ISaveCommand<TInterface> Create()`: create a new item
-- `ISaveCommand<TInterface>?> UpdateAsync()`: update the specified item
-- `ISaveCommand<TInterface>?> DeleteAsync()`: delete the specified item
+- `ISaveCommand<TInterface> Create()`: create an `ISaveCommand<TInterface>` to create a new item
+- `ISaveCommand<TInterface>?> UpdateAsync()`: create an `ISaveCommand<TInterface>` to update the specified item
+- `ISaveCommand<TInterface>?> DeleteAsync()`: create an `ISaveCommand<TInterface>` to delete the specified item
+
+- `IBatchCommand<TInterface>?> Batch()`: create an `IBatchCommand<TInterface>` to save a batch of `ISaveCommand<TInterface>`
+
 - `IReadResult<TInterface>?> ReadAsync()`: read the specified item
+
 - `IQueryCommand<TInterface> Query()`: create a LINQ query for items
 
 ### ISaveCommand\<TInterface\>
@@ -255,13 +260,27 @@ The `ISaveCommand<TInterface>` interface defines one property and two methods:
 - `IReadResult<TInterface> SaveAsync()`: save the item and return the saved item as a `IReadResult<TInterface>`
 - `ValidationResult ValidateAsync()`: validate the item
 
+### IBatchCommand\<TInterface\>
+
+The `IBatchCommand<TInterface>` interface defines three methods:
+
+- `IBatchCommand<TInterface> Add(ISaveCommand<TInterface> saveCommand)`: add the specified `ISaveCommand<TInterface>` to the batch
+- `IBatchResult<TInterface>[] SaveAsync()`: save the batch and return the saved items as an array of `IBatchResult<TInterface>`
+- `ValidationResult[] ValidateAsync()`: validate the batch
+
 ### IReadResult\<TInterface\>
 
 The `IReadResult<TInterface>` interface defines one property and one method:
 
-- `TInterface Item`: the item to create, update, or delete
-saved item as a `IReadResult<TInterface>`
+- `TInterface Item`: the item read
 - `ValidationResult ValidateAsync()`: validate the item
+
+### IBatchResult`<TInterface`>
+
+The `IBatchResult<TInterface>` interface defines two properties:
+
+- `HttpStatusCode`: the status code of this save
+- `IReadResult<TInterface>`: the saved item, if the save was successful
 
 ### IQueryCommand\<TInterface\>
 
@@ -269,6 +288,38 @@ The `IQueryCommand<TInterface>` interface defines two methods:
 
 - `IQueryCommand<TInterface> Where()`: adds a predicate to filter the items
 - `IAsyncEnumerable<IReadResult<TInterface>> ToAsyncEnumerable()`: executes the query and returns the results as an enumerable collection of `IReadResult<TInterface>`.
+
+### ISaveCommand\<TInterface\> vs IBatchCommand\<TInterface\>
+
+`ISaveCommand<TInterface>` operates on a single item, whereas `IBatchCommand<TInterface>` operates on a batch of items.
+
+If `ISaveCommand<TInterface>` faults, it will throw an exception:
+
+- `ValidationException`: The item failed validation
+- `CommandException`: The item failed to save
+
+    - `Conflict`: The item conflicts with an existing item in the backing store
+    - `PreconditionFailed`: The item a different version from the version available in the backing store
+
+Otherwise, `ISaveCommand<TInterface>` will return an `IReadResult<TInterface>`.
+
+If `IBatchCommand<TInterface>` faults, it will throw an exception:
+
+- `ValidationException`: One or more items in the batch failed validation
+
+Otherwise, `IBatchCommand<TInterface>` will return an array of `IBatchResult<TInterface>`. Each `IBatchResult<TInterface>` corresponds to the respective `ISaveCommand<TInterface>` in the batch.
+
+`IBatchResult<TInterface>`:
+
+- `HttpStatusCode`:
+
+    - `OK`: The save was successful
+    - `BadRequest`: The save command is not valid
+    - `Conflict`: The item conflicts with an existing item in the backing store
+    - `FailedDependency`: An item in the batch faulted
+    - `PreconditionFailed`: The item a different version from the version available in the backing store
+
+- `ReadResult`: the saved item, if the save was successful
 
 ### TInterface vs TItem
 

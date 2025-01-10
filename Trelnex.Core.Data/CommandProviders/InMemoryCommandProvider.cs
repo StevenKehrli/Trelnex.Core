@@ -143,7 +143,7 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
                     new SaveResult<TInterface, TItem>(
                         httpStatusCode,
                         null);
-                
+
                 break;
             }
         }
