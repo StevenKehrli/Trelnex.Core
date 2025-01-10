@@ -55,7 +55,7 @@ internal class BatchCommand<TInterface, TItem>(
     /// <summary>
     /// The batch of save commands to save.
     /// </summary>
-    private readonly List<SaveCommand<TInterface, TItem>> _saveCommands = [];
+    private List<SaveCommand<TInterface, TItem>> _saveCommands = [];
 
     /// <summary>
     /// Adds a <see cref="ISaveCommand{TInterface}"/> to the batch.
@@ -77,13 +77,24 @@ internal class BatchCommand<TInterface, TItem>(
         // ensure that only one operation that modifies the batch is in progress at a time
         _semaphore.Wait();
 
-        // add the save command to the batch
-        _saveCommands.Add(sc);
+        try
+        {
+            // check if already saved
+            if (_saveCommands is null)
+            {
+                throw new InvalidOperationException("The Command is no longer valid because its SaveAsync method has already been called.");
+            }
 
-        // release the exclusive lock
-        _semaphore.Release();
+            // add the save command to the batch
+            _saveCommands.Add(sc);
 
-        return this;
+            return this;
+        }
+        finally
+        {
+            // release the exclusive lock
+            _semaphore.Release();
+        }
     }
 
     /// <summary>
@@ -101,6 +112,12 @@ internal class BatchCommand<TInterface, TItem>(
 
         try
         {
+            // check if already saved
+            if (_saveCommands is null)
+            {
+                throw new InvalidOperationException("The Command is no longer valid because its SaveAsync method has already been called.");
+            }
+
             // if there are no save commands, return an empty array
             if (_saveCommands.Count == 0)
             {
@@ -123,6 +140,15 @@ internal class BatchCommand<TInterface, TItem>(
             // do not propagate the cancellation token
             // each acquire task will handle the cancellation
             Task.WaitAll(acquireTasks, CancellationToken.None);
+
+            // if cancellation requested, release the save commands and throw
+            if (cancellationToken.IsCancellationRequested)
+            {
+                // release the save commands
+                _saveCommands.ForEach(sc => sc.Release());
+
+                cancellationToken.ThrowIfCancellationRequested();
+            }
 
             // check if any of the acquire tasks faulted
             return acquireTasks.Any(at => at.IsFaulted)
@@ -200,9 +226,6 @@ internal class BatchCommand<TInterface, TItem>(
         Task<SaveRequest<TInterface, TItem>>[] acquireTasks,
         CancellationToken cancellationToken)
     {
-        // throw if cancelled
-        cancellationToken.ThrowIfCancellationRequested();
-
         // allocate the array of save requests
         var requests = acquireTasks
             .Select(at => at.Result)
@@ -242,6 +265,9 @@ internal class BatchCommand<TInterface, TItem>(
                 saveResult.HttpStatusCode,
                 readResult);
         }
+
+        // null out the saveCommands so we know that we have already saved and are no longer valid
+        _saveCommands = null!;
 
         return batchResults;
     }
