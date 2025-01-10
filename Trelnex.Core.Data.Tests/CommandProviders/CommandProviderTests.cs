@@ -441,6 +441,607 @@ public abstract class CommandProviderTests
     }
 
     [Test]
+    public async Task BatchCommand_SaveAsync_Create()
+    {
+        var id1 = "267e3d9e-55be-4030-be5a-793bd5f59147";
+        var id2 = "a18c881a-2268-4651-b4c2-2c5ac992f0f3";
+        var partitionKey = "355bff90-f0b6-4a50-8b49-ba9882820390";
+
+        var startDateTime = DateTime.UtcNow;
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey);
+
+        createCommand1.Item.Message = "Message #1";
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey);
+
+        createCommand2.Item.Message = "Message #2";
+
+        var batchCommand = _commandProvider.Batch();
+
+        batchCommand.Add(createCommand1);
+        batchCommand.Add(createCommand2);
+
+        // save the batch and read it back
+        var created = await batchCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        Assert.That(created, Is.Not.Null);
+
+        Snapshot.Match(
+            created,
+            matchOptions => matchOptions
+                .Assert(fieldOption =>
+                {
+                    Assert.Multiple(() =>
+                    {
+                        var currentDateTime = DateTime.UtcNow;
+
+                        // createdDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("[*].ReadResult.Item.CreatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // updatedDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("[*].ReadResult.Item.UpdatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // createdDate == updatedDate
+                        Assert.That(
+                            fieldOption.Field<DateTime>("[0].ReadResult.Item.CreatedDate"),
+                            Is.EqualTo(fieldOption.Field<DateTime>("[0].ReadResult.Item.UpdatedDate")));
+
+                        // createdDate == updatedDate
+                        Assert.That(
+                            fieldOption.Field<DateTime>("[1].ReadResult.Item.CreatedDate"),
+                            Is.EqualTo(fieldOption.Field<DateTime>("[1].ReadResult.Item.UpdatedDate")));
+
+                        // _eTag
+                        Assert.That(
+                            fieldOption.Fields<string>("[*].ReadResult.Item.ETag"),
+                            Has.All.Not.Default);
+                    });
+                }));
+    }
+
+    [Test]
+    public async Task BatchCommand_SaveAsync_CreateConflict()
+    {
+        var id1 = "2d861ba9-ba32-45c7-bfdf-2c08c70c30e2";
+        var id2 = "a0ac8a58-2d76-40d2-9f14-1dd5543e8429";
+        var partitionKey = "ae9d5360-1e01-480a-9465-4da82ee882b7";
+
+        var startDateTime = DateTime.UtcNow;
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand0 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey);
+
+        createCommand0.Item.Message = "Message #0";
+
+        await createCommand0.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey);
+
+        createCommand1.Item.Message = "Message #1";
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey);
+
+        createCommand2.Item.Message = "Message #2";
+
+        var batchCommand = _commandProvider.Batch();
+
+        batchCommand.Add(createCommand1);
+        batchCommand.Add(createCommand2);
+
+        // save the batch and read it back
+        var saved = await batchCommand.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        Assert.That(saved, Is.Not.Null);
+
+        // query
+        var queryCommand = _commandProvider.Query();
+
+        // should return just #0
+        var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        var o = new
+        {
+            saved,
+            read
+        };
+
+        Snapshot.Match(
+            o,
+            matchOptions => matchOptions
+                .Assert(fieldOption =>
+                {
+                    Assert.Multiple(() =>
+                    {
+                        var currentDateTime = DateTime.UtcNow;
+
+                        // createdDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("read.[*].Item.CreatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // updatedDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("read.[*].Item.UpdatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // createdDate == updatedDate
+                        Assert.That(
+                            fieldOption.Field<DateTime>("read.[0].Item.CreatedDate"),
+                            Is.EqualTo(fieldOption.Field<DateTime>("read.[0].Item.UpdatedDate")));
+
+                        // _eTag
+                        Assert.That(
+                            fieldOption.Fields<string>("read.[*].Item.ETag"),
+                            Has.All.Not.Default);
+                    });
+                }));
+    }
+
+    [Test]
+    public async Task BatchCommand_SaveAsync_Update()
+    {
+        var id1 = "e89a2934-b506-4cc7-bf03-4148b3a10ace";
+        var id2 = "7058e816-5913-4fc7-92ae-d3bf14c7c9b4";
+        var partitionKey = "0a7bc917-5670-41cf-87b7-7d97d51ecb82";
+
+        var startDateTime = DateTime.UtcNow;
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey);
+
+        createCommand1.Item.Message = "Message #1";
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey);
+
+        createCommand2.Item.Message = "Message #2";
+
+        var batchCommand1 = _commandProvider.Batch();
+
+        batchCommand1.Add(createCommand1);
+        batchCommand1.Add(createCommand2);
+
+        // save the batch and read it back
+        var created = await batchCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var updateCommand1 = await _commandProvider.UpdateAsync(
+            id: id1,
+            partitionKey: partitionKey);
+
+        Assert.That(updateCommand1, Is.Not.Null);
+        Assert.That(updateCommand1!.Item, Is.Not.Null);
+
+        updateCommand1.Item.Message = "Message #3";
+
+        var updateCommand2 = await _commandProvider.UpdateAsync(
+            id: id2,
+            partitionKey: partitionKey);
+
+        Assert.That(updateCommand2, Is.Not.Null);
+        Assert.That(updateCommand2!.Item, Is.Not.Null);
+
+        updateCommand2.Item.Message = "Message #4";
+
+        var batchCommand2 = _commandProvider.Batch();
+
+        batchCommand2.Add(updateCommand1);
+        batchCommand2.Add(updateCommand2);
+
+        // save the batch and read it back
+        var updated = await batchCommand2.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        Assert.That(updated, Is.Not.Null);
+
+        Snapshot.Match(
+            updated,
+            matchOptions => matchOptions
+                .Assert(fieldOption =>
+                {
+                    Assert.Multiple(() =>
+                    {
+                        var currentDateTime = DateTime.UtcNow;
+
+                        // createdDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("[*].ReadResult.Item.CreatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // updatedDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("[*].ReadResult.Item.UpdatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // createdDate == updatedDate
+                        Assert.That(
+                            fieldOption.Field<DateTime>("[0].ReadResult.Item.CreatedDate"),
+                            Is.Not.EqualTo(fieldOption.Field<DateTime>("[0].ReadResult.Item.UpdatedDate")));
+
+                        // createdDate == updatedDate
+                        Assert.That(
+                            fieldOption.Field<DateTime>("[1].ReadResult.Item.CreatedDate"),
+                            Is.Not.EqualTo(fieldOption.Field<DateTime>("[1].ReadResult.Item.UpdatedDate")));
+
+                        // _eTag
+                        Assert.That(
+                            fieldOption.Fields<string>("[*].ReadResult.Item.ETag"),
+                            Has.All.Not.Default);
+                    });
+                }));
+    }
+
+    [Test]
+    public async Task BatchCommand_SaveAsync_UpdatePreconditionFailed()
+    {
+        var id1 = "3107d2ff-9f33-4718-b180-f7b65223fba8";
+        var id2 = "5f969f1c-c115-4982-949b-4e4987197dfe";
+        var partitionKey = "90eabddb-a71a-4ccb-aa1a-062590597fb2";
+
+        var startDateTime = DateTime.UtcNow;
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey);
+
+        createCommand1.Item.Message = "Message #1";
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey);
+
+        createCommand2.Item.Message = "Message #2";
+
+        var batchCommand1 = _commandProvider.Batch();
+
+        batchCommand1.Add(createCommand1);
+        batchCommand1.Add(createCommand2);
+
+        // save the batch and read it back
+        var created = await batchCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var updateCommand0 = await _commandProvider.UpdateAsync(
+            id: id2,
+            partitionKey: partitionKey);
+
+        Assert.That(updateCommand0, Is.Not.Null);
+        Assert.That(updateCommand0!.Item, Is.Not.Null);
+
+        updateCommand0.Item.Message = "Message #0";
+
+        var updateCommand1 = await _commandProvider.UpdateAsync(
+            id: id1,
+            partitionKey: partitionKey);
+
+        Assert.That(updateCommand1, Is.Not.Null);
+        Assert.That(updateCommand1!.Item, Is.Not.Null);
+
+        updateCommand1.Item.Message = "Message #3";
+
+        var updateCommand2 = await _commandProvider.UpdateAsync(
+            id: id2,
+            partitionKey: partitionKey);
+
+        Assert.That(updateCommand2, Is.Not.Null);
+        Assert.That(updateCommand2!.Item, Is.Not.Null);
+
+        updateCommand2.Item.Message = "Message #4";
+
+        await updateCommand0.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var batchCommand2 = _commandProvider.Batch();
+
+        batchCommand2.Add(updateCommand1);
+        batchCommand2.Add(updateCommand2);
+
+        // save the batch and read it back
+        var saved = await batchCommand2.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        Assert.That(saved, Is.Not.Null);
+
+        // query
+        var queryCommand = _commandProvider.Query();
+
+        // should return #1 and #0
+        var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        var o = new
+        {
+            saved,
+            read
+        };
+
+        Snapshot.Match(
+            o,
+            matchOptions => matchOptions
+                .Assert(fieldOption =>
+                {
+                    Assert.Multiple(() =>
+                    {
+                        var currentDateTime = DateTime.UtcNow;
+
+                        // createdDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("read.[*].Item.CreatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // updatedDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("read.[*].Item.UpdatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // createdDate == updatedDate
+                        Assert.That(
+                            fieldOption.Field<DateTime>("read.[0].Item.CreatedDate"),
+                            Is.EqualTo(fieldOption.Field<DateTime>("read.[0].Item.UpdatedDate")));
+
+                        // createdDate != updatedDate
+                        Assert.That(
+                            fieldOption.Field<DateTime>("read.[1].Item.CreatedDate"),
+                            Is.Not.EqualTo(fieldOption.Field<DateTime>("read.[1].Item.UpdatedDate")));
+
+                        // _eTag
+                        Assert.That(
+                            fieldOption.Fields<string>("read.[*].Item.ETag"),
+                            Has.All.Not.Default);
+                    });
+                }));
+    }
+
+    [Test]
+    public async Task BatchCommand_SaveAsync_Delete()
+    {
+        var id1 = "6704a3e2-1757-4540-aa07-16f36a567ce6";
+        var id2 = "41981704-8fc4-4da1-b12a-e913f1dfa0dc";
+        var partitionKey = "75e5d19c-e809-49ed-a7ba-a89e96217ed3";
+
+        var startDateTime = DateTime.UtcNow;
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey);
+
+        createCommand1.Item.Message = "Message #1";
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey);
+
+        createCommand2.Item.Message = "Message #2";
+
+        var batchCommand1 = _commandProvider.Batch();
+
+        batchCommand1.Add(createCommand1);
+        batchCommand1.Add(createCommand2);
+
+        // save the batch and read it back
+        var created = await batchCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var deleteCommand1 = await _commandProvider.DeleteAsync(
+            id: id1,
+            partitionKey: partitionKey);
+
+        Assert.That(deleteCommand1, Is.Not.Null);
+        Assert.That(deleteCommand1!.Item, Is.Not.Null);
+
+        var deleteCommand2 = await _commandProvider.DeleteAsync(
+            id: id2,
+            partitionKey: partitionKey);
+
+        Assert.That(deleteCommand2, Is.Not.Null);
+        Assert.That(deleteCommand2!.Item, Is.Not.Null);
+
+        var batchCommand2 = _commandProvider.Batch();
+
+        batchCommand2.Add(deleteCommand1);
+        batchCommand2.Add(deleteCommand2);
+
+        // save the batch and read it back
+        var deleted = await batchCommand2.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        Assert.That(deleted, Is.Not.Null);
+
+        Snapshot.Match(
+            deleted,
+            matchOptions => matchOptions
+                .Assert(fieldOption =>
+                {
+                    Assert.Multiple(() =>
+                    {
+                        var currentDateTime = DateTime.UtcNow;
+
+                        // createdDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("[*].ReadResult.Item.CreatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // updatedDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("[*].ReadResult.Item.UpdatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // createdDate == updatedDate
+                        Assert.That(
+                            fieldOption.Field<DateTime>("[0].ReadResult.Item.CreatedDate"),
+                            Is.EqualTo(fieldOption.Field<DateTime>("[0].ReadResult.Item.UpdatedDate")));
+
+                        // createdDate == updatedDate
+                        Assert.That(
+                            fieldOption.Field<DateTime>("[1].ReadResult.Item.CreatedDate"),
+                            Is.EqualTo(fieldOption.Field<DateTime>("[1].ReadResult.Item.UpdatedDate")));
+
+                        // deletedDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("[*].ReadResult.Item.DeletedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // _eTag
+                        Assert.That(
+                            fieldOption.Fields<string>("[*].ReadResult.Item.ETag"),
+                            Has.All.Not.Default);
+                    });
+                }));
+    }
+
+    [Test]
+    public async Task BatchCommand_SaveAsync_DeletePreconditionFailed()
+    {
+        var id1 = "0ffc3bd2-b33f-4902-a4bf-b804d8aa01e9";
+        var id2 = "1786f299-b363-48b8-9142-dc28eeebe9c4";
+        var partitionKey = "c25361d6-3d14-452d-a99d-22ef7c85d70e";
+
+        var startDateTime = DateTime.UtcNow;
+
+        var requestContext = TestRequestContext.Create();
+
+        var createCommand1 = _commandProvider.Create(
+            id: id1,
+            partitionKey: partitionKey);
+
+        createCommand1.Item.Message = "Message #1";
+
+        var createCommand2 = _commandProvider.Create(
+            id: id2,
+            partitionKey: partitionKey);
+
+        createCommand2.Item.Message = "Message #2";
+
+        var batchCommand1 = _commandProvider.Batch();
+
+        batchCommand1.Add(createCommand1);
+        batchCommand1.Add(createCommand2);
+
+        // save the batch and read it back
+        var created = await batchCommand1.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var deleteCommand0 = await _commandProvider.DeleteAsync(
+            id: id2,
+            partitionKey: partitionKey);
+
+        Assert.That(deleteCommand0, Is.Not.Null);
+        Assert.That(deleteCommand0!.Item, Is.Not.Null);
+
+        var deleteCommand1 = await _commandProvider.DeleteAsync(
+            id: id1,
+            partitionKey: partitionKey);
+
+        Assert.That(deleteCommand1, Is.Not.Null);
+        Assert.That(deleteCommand1!.Item, Is.Not.Null);
+
+        var deleteCommand2 = await _commandProvider.DeleteAsync(
+            id: id2,
+            partitionKey: partitionKey);
+
+        Assert.That(deleteCommand2, Is.Not.Null);
+        Assert.That(deleteCommand2!.Item, Is.Not.Null);
+
+        await deleteCommand0.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        var batchCommand2 = _commandProvider.Batch();
+
+        batchCommand2.Add(deleteCommand1);
+        batchCommand2.Add(deleteCommand2);
+
+        // save the batch and read it back
+        var saved = await batchCommand2.SaveAsync(
+            requestContext: requestContext,
+            cancellationToken: default);
+
+        Assert.That(saved, Is.Not.Null);
+
+        // query
+        var queryCommand = _commandProvider.Query();
+
+        // should return just #1
+        var read = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
+
+        var o = new
+        {
+            saved,
+            read
+        };
+
+        Snapshot.Match(
+            o,
+            matchOptions => matchOptions
+                .Assert(fieldOption =>
+                {
+                    Assert.Multiple(() =>
+                    {
+                        var currentDateTime = DateTime.UtcNow;
+
+                        // createdDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("read.[*].Item.CreatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // updatedDate
+                        Assert.That(
+                            fieldOption.Fields<DateTime>("read,[*].Item.UpdatedDate"),
+                            Has.All.InRange(startDateTime, currentDateTime));
+
+                        // createdDate == updatedDate
+                        Assert.That(
+                            fieldOption.Field<DateTime>("read.[0].Item.CreatedDate"),
+                            Is.EqualTo(fieldOption.Field<DateTime>("read.[0].Item.UpdatedDate")));
+
+                        // _eTag
+                        Assert.That(
+                            fieldOption.Fields<string>("read.[*].Item.ETag"),
+                            Has.All.Not.Default);
+                    });
+                }));
+    }
+
+    [Test]
     public async Task QueryCommand_ToAsyncEnumerable()
     {
         var id1 = "3fca6d8a-75c1-491a-9178-90343551364a";

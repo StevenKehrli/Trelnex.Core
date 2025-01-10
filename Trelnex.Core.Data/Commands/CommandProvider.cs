@@ -61,6 +61,12 @@ public interface ICommandProvider<TInterface>
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Creates a batch of commands for the backing data store.
+    /// </summary>
+    /// <returns>An <see cref="IBatchCommand{TInterface}"/> to batch the commands for the backing data store.</returns>
+    IBatchCommand<TInterface> Batch();
+
+    /// <summary>
     /// Creates a LINQ query for items from the backing data store.
     /// </summary>
     /// <returns>The <see cref="IQueryCommand{TInterface}"/>.</returns>
@@ -105,7 +111,7 @@ internal abstract partial class CommandProvider<TInterface, TItem>
     /// <summary>
     /// The delegate to validate and save a batch of items.
     /// </summary>
-    private readonly SaveBatchAsyncDelegate<TInterface, TItem>? _saveBatchAsyncDelegate;
+    private readonly SaveBatchAsyncDelegate<TInterface, TItem> _saveBatchAsyncDelegate;
 
     /// <summary>
     /// The type name of the item - used for <see cref="BaseItem.TypeName"/>.
@@ -301,6 +307,16 @@ internal abstract partial class CommandProvider<TInterface, TItem>
         }
 
         return CreateUpdateCommand(item);
+    }
+
+
+    /// <summary>
+    /// Creates a batch of commands for the backing data store.
+    /// </summary>
+    /// <returns>An <see cref="IBatchCommand{TInterface}"/> to batch the commands for the backing data store.</returns>
+    public IBatchCommand<TInterface> Batch()
+    {
+        return new BatchCommand<TInterface, TItem>(_saveBatchAsyncDelegate);
     }
 
     /// <summary>
