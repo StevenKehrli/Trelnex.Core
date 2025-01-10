@@ -97,7 +97,7 @@ internal class BatchCommand<TInterface, TItem>(
         CancellationToken cancellationToken)
     {
         // ensure that only one operation that modifies the batch is in progress at a time
-        _semaphore.Wait();
+        _semaphore.Wait(cancellationToken);
 
         try
         {
@@ -116,7 +116,6 @@ internal class BatchCommand<TInterface, TItem>(
                 .Select((sc, index) => {
                     return (
                         task: sc.AcquireAsync(requestContext, cancellationToken),
-                        saveCommand: sc,
                         index: index);
                 });
 
@@ -131,10 +130,10 @@ internal class BatchCommand<TInterface, TItem>(
             {
                 // something faulted
 
-                foreach (var (task, saveCommand, index) in acquireTasks)
+                foreach (var (task, index) in acquireTasks)
                 {
                     // if this task completed successfully, release the save command
-                    if (task.IsCompletedSuccessfully) saveCommand.Release();
+                    if (task.IsCompletedSuccessfully) _saveCommands[index].Release();
 
                     // bad request: this faulted
                     // failed dependency: something else faulted
@@ -152,12 +151,9 @@ internal class BatchCommand<TInterface, TItem>(
             cancellationToken.ThrowIfCancellationRequested();
 
             // allocate the array of save requests
-            var requests = new SaveRequest<TInterface, TItem>[_saveCommands.Count];
-
-            foreach (var (task, saveCommand, index) in acquireTasks)
-            {
-                requests[index] = task.Result;
-            }
+            var requests = acquireTasks
+                .Select(at => at.task.Result)
+                .ToArray();
 
             // save the batch
             var saveResults = await saveBatchAsyncDelegate(
@@ -165,29 +161,8 @@ internal class BatchCommand<TInterface, TItem>(
                 requests: requests,
                 cancellationToken: cancellationToken);
 
-            var isCompletedSuccessfully = saveResults.All(sr => sr.HttpStatusCode == HttpStatusCode.OK);
-
-            for (var index = 0; index < saveResults.Length; index++)
-            {
-                // get the save command and save result
-                var saveCommand = _saveCommands[index];
-                var saveResult = saveResults[index];
-
-                // if successful, update the save command
-                var readResult = isCompletedSuccessfully
-                    ? saveCommand.Update(saveResult.Item!)
-                    : null;
-
-                // release the save command
-                saveCommand.Release();
-
-                // create the read result
-                batchResults[index] = new BatchResult<TInterface, TItem>(
-                    saveResult.HttpStatusCode,
-                    readResult);
-            }
-
-            return batchResults;
+            // handle the save requests
+            return HandleSaveResults(saveResults);
         }
         finally
         {
@@ -221,5 +196,40 @@ internal class BatchCommand<TInterface, TItem>(
         _semaphore.Release();
 
         return validationResults;
+    }
+
+    /// <summary>
+    /// Update and release the save commands
+    /// </summary>
+    /// <param name="saveResults">The save results returned from the save batch delegate.</param>
+    /// <returns>The array of <see cref="IBatchResult{TInterface}"/> with the items that were read.</returns>
+    private IBatchResult<TInterface>[] HandleSaveResults(
+        SaveResult<TInterface, TItem>[] saveResults)
+    {
+        // allocate the batch results
+        var batchResults = new BatchResult<TInterface, TItem>[_saveCommands.Count];
+
+        // determine if all the save results were successful
+        var isCompletedSuccessfully = saveResults.All(sr => sr.HttpStatusCode == HttpStatusCode.OK);
+
+        for (var index = 0; index < saveResults.Length; index++)
+        {
+            // get the save command and the save result
+            var saveCommand = _saveCommands[index];
+            var saveResult = saveResults[index];
+
+            // update the save command and get the read result
+            var readResult = isCompletedSuccessfully ? saveCommand.Update(saveResult.Item!) : null;
+
+            // release the save command
+            saveCommand.Release();
+
+            // create the batch result
+            batchResults[index] = new BatchResult<TInterface, TItem>(
+                saveResult.HttpStatusCode,
+                readResult);
+        }
+
+        return batchResults;
     }
 }
