@@ -68,7 +68,7 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
         CancellationToken cancellationToken = default)
     {
         // create the transaction
-        using var transactionScope = new TransactionScope();
+        using var transactionScope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
 
         // create the connection
         using var dataConnection = new DataConnection(dataOptions);
@@ -115,18 +115,19 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
         var saveResults = new SaveResult<TInterface, TItem>[requests.Length];
 
         // create the transaction
-        using var transactionScope = new TransactionScope();
+        using var transactionScope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
 
         // create the connection
         using var dataConnection = new DataConnection(dataOptions);
 
         // enumerate each item
-        for (var index = 0; index < requests.Length; index++)
+        var saveRequestIndex = 0;
+        for ( ; saveRequestIndex < requests.Length; saveRequestIndex++)
         {
             // check for if previous item failed
-            if (index > 0 && saveResults[index - 1].HttpStatusCode != HttpStatusCode.OK)
+            if (saveRequestIndex > 0 && saveResults[saveRequestIndex - 1].HttpStatusCode != HttpStatusCode.OK)
             {
-                saveResults[index] =
+                saveResults[saveRequestIndex] =
                     new SaveResult<TInterface, TItem>(
                         HttpStatusCode.FailedDependency,
                         null);
@@ -134,14 +135,14 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
                 continue;
             }
 
-            var saveContext = requests[index];
+            var saveRequest = requests[saveRequestIndex];
 
             try
             {
                 // save the item
-                var saved = await SaveItemAsync(dataConnection, saveContext, cancellationToken);
+                var saved = await SaveItemAsync(dataConnection, saveRequest, cancellationToken);
 
-                saveResults[index] =
+                saveResults[saveRequestIndex] =
                     new SaveResult<TInterface, TItem>(
                         HttpStatusCode.OK,
                         saved);
@@ -153,7 +154,7 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
                     ? ce.HttpStatusCode
                     : HttpStatusCode.InternalServerError;
 
-                saveResults[index] =
+                saveResults[saveRequestIndex] =
                     new SaveResult<TInterface, TItem>(
                         httpStatusCode,
                         null);
@@ -163,10 +164,24 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
             }
         }
 
-        // if the batch completed successfully, commit the transaction
-        if (saveResults.All(r => r.HttpStatusCode == HttpStatusCode.OK))
+        if (saveRequestIndex == requests.Length)
         {
+            // the batch completed successfully, complete the transaction
             transactionScope.Complete();
+        }
+        else
+        {
+            // a save request failed
+            // update all other results to failed dependency
+            for (var saveResultIndex = 0; saveResultIndex < saveResults.Length; saveResultIndex++)
+            {
+                if (saveResultIndex == saveRequestIndex) continue;
+
+                saveResults[saveResultIndex] =
+                    new SaveResult<TInterface, TItem>(
+                        HttpStatusCode.FailedDependency,
+                        null);
+            }
         }
 
         return await Task.FromResult(saveResults);

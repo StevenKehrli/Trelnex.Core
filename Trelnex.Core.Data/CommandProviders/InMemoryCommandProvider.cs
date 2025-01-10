@@ -117,27 +117,17 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
         var batchStore = new InMemoryStore(_store);
 
         // enumerate each item
-        for (var index = 0; index < requests.Length; index++)
+        var saveRequestIndex = 0;
+        for ( ; saveRequestIndex < requests.Length; saveRequestIndex++)
         {
-            // check for if previous item failed
-            if (index > 0 && saveResults[index - 1].HttpStatusCode != HttpStatusCode.OK)
-            {
-                saveResults[index] =
-                    new SaveResult<TInterface, TItem>(
-                        HttpStatusCode.FailedDependency,
-                        null);
-
-                continue;
-            }
-
-            var saveContext = requests[index];
+            var saveRequest = requests[saveRequestIndex];
 
             try
             {
                 // save the item
-                var saved = SaveItem(batchStore, saveContext);
+                var saved = SaveItem(batchStore, saveRequest);
 
-                saveResults[index] =
+                saveResults[saveRequestIndex] =
                     new SaveResult<TInterface, TItem>(
                         HttpStatusCode.OK,
                         saved);
@@ -149,17 +139,33 @@ internal class InMemoryCommandProvider<TInterface, TItem>(
                     ? commandEx.HttpStatusCode
                     : HttpStatusCode.InternalServerError;
 
-                saveResults[index] =
+                saveResults[saveRequestIndex] =
                     new SaveResult<TInterface, TItem>(
                         httpStatusCode,
                         null);
+                
+                break;
             }
         }
 
-        // if the batch completed successfully, update the backing store
-        if (saveResults.All(r => r.HttpStatusCode == HttpStatusCode.OK))
+        if (saveRequestIndex == requests.Length)
         {
+            // the batch completed successfully, update the backing store
             _store = batchStore;
+        }
+        else
+        {
+            // a save request failed
+            // update all other results to failed dependency
+            for (var saveResultIndex = 0; saveResultIndex < saveResults.Length; saveResultIndex++)
+            {
+                if (saveResultIndex == saveRequestIndex) continue;
+
+                saveResults[saveResultIndex] =
+                    new SaveResult<TInterface, TItem>(
+                        HttpStatusCode.FailedDependency,
+                        null);
+            }
         }
 
         // unlock
