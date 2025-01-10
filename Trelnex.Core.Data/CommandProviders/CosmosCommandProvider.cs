@@ -118,7 +118,11 @@ internal class CosmosCommandProvider<TInterface, TItem>(
             for (int index = 0; index < requests.Length; index++)
             {
                 // get the returned item
-                var itemResponse = response.GetOperationResultAtIndex<TItem>(index);
+                // the operation results are interleaved between the item and event, so:
+                //   request 0 item is at index 0 and its event it at index 1
+                //   request 1 item is at index 2 and its event it at index 3
+                //   etc
+                var itemResponse = response.GetOperationResultAtIndex<TItem>(index * 2);
 
                 // check the status code and build the result
                 var httpStatusCode = itemResponse.IsSuccessStatusCode
