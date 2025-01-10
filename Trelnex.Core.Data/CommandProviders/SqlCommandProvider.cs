@@ -157,7 +157,7 @@ internal partial class SqlCommandProvider<TInterface, TItem>(
                     new SaveResult<TInterface, TItem>(
                         httpStatusCode,
                         null);
-                
+
                 // abort any further processing
                 break;
             }

@@ -137,7 +137,17 @@ internal class SaveCommand<TInterface, TItem>
         // ensure that only one operation that modifies the item is in progress at a time
         await _semaphore.WaitAsync(cancellationToken);
 
-        return CreateSaveRequest(requestContext);
+        try
+        {
+            return CreateSaveRequest(requestContext);
+        }
+        catch
+        {
+            // CreateSaveRequest may throw an exception if the command is no longer valid
+            _semaphore.Release();
+
+            throw;
+        }
     }
 
     /// <summary>
