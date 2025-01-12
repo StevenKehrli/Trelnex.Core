@@ -1,4 +1,3 @@
-using Azure.Core;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Trelnex.Core.Client.Identity;
 
@@ -7,16 +6,14 @@ namespace Trelnex.Core.Api.HealthChecks;
 /// <summary>
 /// Initializes a new instance of the <see cref="AccessTokenHealthCheck"/>.
 /// </summary>
-/// <param name="credentialName">The name of the <see cref="TokenCredential"/> for this health check.</param>
+/// <param name="credentialStatus">The <see cref="CredentialStatus"/> from which to get the array of <see cref="AccessTokenStatus"/> for this health check.</param>
 internal class AccessTokenHealthCheck(
-    string credentialName) : IHealthCheck
+    CredentialStatus credentialStatus) : IHealthCheck
 {
     public Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = new CancellationToken())
     {
-        var credentialStatus = CredentialFactory.Instance.GetStatus(credentialName);
-
         var data = new Dictionary<string, object>()
         {
             ["statuses"] = credentialStatus.Statuses
@@ -24,7 +21,7 @@ internal class AccessTokenHealthCheck(
 
         var healthCheckResult = new HealthCheckResult(
             status: GetHealthStatus(credentialStatus.Statuses),
-            description: credentialName,
+            description: credentialStatus.CredentialName,
             data: data);
 
         return Task.FromResult(healthCheckResult);

@@ -19,15 +19,17 @@ public static class AccessTokenHealthCheckExtensions
     {
         if (CredentialFactory.IsInitialized is false) return builder;
 
+        var credentialStatuses = CredentialFactory.Instance.GetStatus();
+
         // add the credential health checks
-        Array.ForEach(CredentialFactory.Instance.CredentialNames, credentialName =>
+        Array.ForEach(credentialStatuses, credentialStatus =>
         {
-            var healthCheckName = $"AccessTokenHealthCheck: {credentialName}";
+            var healthCheckName = $"AccessTokenHealthCheck: {credentialStatus.CredentialName}";
 
             builder.Add(
                 new HealthCheckRegistration(
                     name: healthCheckName,
-                    factory: _ => new AccessTokenHealthCheck(credentialName),
+                    factory: _ => new AccessTokenHealthCheck(credentialStatus),
                     failureStatus: null,
                     tags: null));
         });
