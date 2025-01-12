@@ -298,19 +298,6 @@ internal class NamedCredential(
         }
 
         /// <summary>
-        /// Gets the <see cref="AccessToken"/>.
-        /// </summary>
-        /// <param name="cancellationToken">The <see cref="CancellationToken"/> to use.</param>
-        /// <returns>The <see cref="AccessToken"/>.</returns>
-        public async ValueTask<AccessToken> GetTokenAsync(
-            CancellationToken cancellationToken = default)
-        {
-            var accessToken = GetToken();
-
-            return await ValueTask.FromResult(accessToken);
-        }
-
-        /// <summary>
         /// Gets the <see cref="AccessTokenStatus"/> for this access token.
         /// </summary>
         /// <returns>A <see cref="AccessTokenStatus"/> describing the status of this access token.</returns>
