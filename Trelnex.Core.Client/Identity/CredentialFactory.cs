@@ -8,20 +8,82 @@ namespace Trelnex.Core.Client.Identity;
 /// <summary>
 /// A Factory pattern to create a <see cref="TokenCredential"/>.
 /// </summary>
-public static class CredentialFactory
+public class CredentialFactory
 {
+    /// <summary>
+    /// The singleton instance of the <see cref="CredentialFactory"/>.
+    /// </summary>
+    private static CredentialFactory _instance = null!;
+
+    /// <summary>
+    /// The <see cref="ILogger"/>.
+    /// </summary>
+    private readonly ILogger _logger;
+
     /// <summary>
     /// The underlying <see cref="TokenCredential"/>.
     /// </summary>
-    private static readonly TokenCredential _credential = GetCredential();
+    private readonly TokenCredential _credential;
 
     /// <summary>
     /// A thread-safe collection of <see cref="string"/> to <see cref="NamedCredential"/>.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, Lazy<NamedCredential>> _namedCredentialsByName = new();
+    private readonly ConcurrentDictionary<string, Lazy<NamedCredential>> _namedCredentialsByName = new();
 
-    public static TokenCredential Get(
+    private CredentialFactory(
         ILogger logger,
+        TokenCredential credential)
+    {
+        _logger = logger;
+        _credential = credential;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CredentialFactory"/> class.
+    /// </summary>
+    /// <param name="logger">The <see cref="ILogger"/>.</param>
+    /// <param name="options">The <see cref="CredentialFactoryOptions"/>.</param>
+    /// <returns>The <see cref="CredentialFactory"/>.</returns>
+    public static void Initialize(
+        ILogger logger,
+        CredentialFactoryOptions options)
+    {
+        // create the credential
+        if (options?.Sources == null || options.Sources.Length == 0)
+        {
+            throw new ArgumentNullException(nameof(options.Sources));
+        }
+
+        var sources = options.Sources
+            .Select(source => source switch
+            {
+                CredentialSource.WorkloadIdentity => new WorkloadIdentityCredential() as TokenCredential,
+                CredentialSource.AzureCli => new AzureCliCredential() as TokenCredential,
+                _ => throw new ArgumentOutOfRangeException()
+            })
+            .ToArray();
+
+        var credential = new ChainedTokenCredential(sources);
+
+        _instance = new CredentialFactory(logger, credential);
+    }
+
+    /// <summary>
+    /// Gets the singleton instance of the <see cref="CredentialFactory"/>.
+    /// </summary>
+    public static CredentialFactory Instance => _instance ?? throw new InvalidOperationException("CredentialFactory has not been initialized.");
+
+    /// <summary>
+    /// Gets a value indicating whether the <see cref="CredentialFactory"/> has been initialized.
+    /// </summary>
+    public static bool IsInitialized => _instance != null;
+
+    /// <summary>
+    /// Gets the <see cref="TokenCredential"/> for the specified credential name.
+    /// </summary>
+    /// <param name="credentialName">The name of the specified credential.</param>
+    /// <returns>The <see cref="TokenCredential"/>.</returns>
+    public TokenCredential Get(
         string credentialName)
     {
         // https://andrewlock.net/making-getoradd-on-concurrentdictionary-thread-safe-using-lazy/
@@ -29,41 +91,30 @@ public static class CredentialFactory
             _namedCredentialsByName.GetOrAdd(
                 key: credentialName,
                 value: new Lazy<NamedCredential>(
-                    () => new NamedCredential(logger, credentialName, _credential)));
+                    () => new NamedCredential(_logger, credentialName, _credential)));
 
         return lazyNamedCredential.Value;
     }
 
     /// <summary>
-    /// Gets the <see cref="CredentialStatus"/> for the specified credential.
+    /// Gets the array of <see cref="CredentialStatus"/> for all credentials.
     /// </summary>
-    /// <param name="credentialName">The name of the specified credential.</param>
-    /// <returns>The <see cref="CredentialStatus"/>.</returns>
-    /// <exception cref="KeyNotFoundException">.</exception>
-    public static CredentialStatus GetStatus(
-        string credentialName)
+    /// <returns>The array of <see cref="CredentialStatus"/>.</returns>
+    public CredentialStatus[] GetStatus()
     {
-        if (_namedCredentialsByName.TryGetValue(credentialName, out var lazyCredential))
-        {
-            return lazyCredential.Value.GetStatus();
-        }
+        return _namedCredentialsByName
+            .Select(kvp =>
+            {
+                var credentialName = kvp.Key;
 
-        throw new KeyNotFoundException();
-    }
+                var lazyNamedCredential = kvp.Value;
+                var namedCredential = lazyNamedCredential.Value;
 
-    /// <summary>
-    /// Gets the array of known credential names.
-    /// </summary>
-    public static string[] CredentialNames => _namedCredentialsByName.Keys.ToArray();
-
-    /// <summary>
-    /// Create a new <see cref="ChainedTokenCredential"/> combining <see cref="WorkloadIdentityCredential"/> and <see cref="AzureCliCredential"/>.
-    /// </summary>
-    /// <returns>The <see cref="TokenCredential"/>.</returns>
-    private static TokenCredential GetCredential()
-    {
-        return new ChainedTokenCredential(
-            new WorkloadIdentityCredential(),
-            new AzureCliCredential());
+                return new CredentialStatus(
+                    credentialName: credentialName,
+                    getAccessTokenStatus: namedCredential.GetStatus);
+            })
+            .OrderBy(status => status.CredentialName)
+            .ToArray();
     }
 }

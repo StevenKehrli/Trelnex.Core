@@ -7,9 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Trelnex.Core.Client.Identity;
 
 /// <summary>
-/// Enables authentication to Microsoft Entra ID to obtain an access token. combining
-/// <see cref="WorkloadIdentityCredential"/> (authentication using workload identity) and
-/// <see cref="AzureCliCredential"/> (authentication using Azure CLI).
+/// Enables authentication to Microsoft Entra ID to obtain an access token.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -17,11 +15,6 @@ namespace Trelnex.Core.Client.Identity;
 /// </para>
 /// <para>
 /// A NamedCredential is addressable by the credential name within <see cref="CredentialFactory"/>.
-/// </para>
-/// <para>
-/// A NamedCredential will refresh its access tokens in accordance with <see cref="AccessToken.RefreshOn"/>.
-/// This will maintain a valid access token and no overhead will be incurred during
-/// <see cref="GetToken"/> or <see cref="GetTokenAsync"/> to get or refresh the access token.
 /// </para>
 /// </remarks>
 /// <param name="logger">The <see cref="ILogger"> used to perform logging.</param>
@@ -41,7 +34,7 @@ internal class NamedCredential(
         TokenRequestContext tokenRequestContext,
         CancellationToken cancellationToken)
     {
-        // create a TokenRequestContextKey - we do not care about ParentRequestId;
+        // create a TokenRequestContextKey - we do not care about ParentRequestId
         var key = TokenRequestContextKey.FromTokenRequestContext(tokenRequestContext);
 
         // https://andrewlock.net/making-getoradd-on-concurrentdictionary-thread-safe-using-lazy/
@@ -67,20 +60,24 @@ internal class NamedCredential(
     }
 
     /// <summary>
-    /// Gets the <see cref="CredentialStatus"/> for this credential.
+    /// Gets the array of <see cref="AccessTokenStatus"/> for this credential.
     /// </summary>
-    /// <returns>A <see cref="CredentialStatus"/> describing the status of this credential.</returns>
-    public CredentialStatus GetStatus()
+    /// <returns>An array of <see cref="AccessTokenStatus"/> describing the status of this credential.</returns>
+    public AccessTokenStatus[] GetStatus()
     {
-        var statuses = _accessTokenItemsByTokenRequestContextKey.Select(kvp =>
-        {
-            var lazy = kvp.Value;
-            var accessTokenItem = lazy.Value;
+        // get the access token item
+        var statuses = _accessTokenItemsByTokenRequestContextKey
+            .Select(kvp =>
+            {
+                var lazy = kvp.Value;
+                var accessTokenItem = lazy.Value;
 
-            return accessTokenItem.GetStatus();
-        }).ToArray();
+                return accessTokenItem.GetStatus();
+            })
+            .OrderBy(status => string.Join(", ", status.TokenRequestContext.Scopes))
+            .ToArray();
 
-        return new CredentialStatus(credentialName, statuses);
+        return statuses ?? [];
     }
 
     /// <summary>
@@ -196,28 +193,16 @@ internal class NamedCredential(
     }
 
     /// <summary>
-    /// Combines a <see cref="AccessToken"/> with a <see cref="System.Threading.Timer"/> to refresh the <see cref="AccessToken"/>.
+    /// Combines an <see cref="AccessToken"/> with a <see cref="System.Threading.Timer"/> to refresh the <see cref="AccessToken"/>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// NamedCredential is an internal class. Users will get an instance of the <see cref="TokenCredential"/> abstract class.
-    /// </para>
-    /// <para>
-    /// A NamedCredential is addressable by <see cref="credentialName"/> within <see cref="CredentialFactory"/>.
-    /// </para>
-    /// <para>
-    /// A NamedCredential will refresh its access tokens in accordance with <see cref="AccessToken.RefreshOn"/>.
-    /// This will maintain a valid access token and no overhead will be incurred during
-    /// <see cref="GetToken"/> or <see cref="GetTokenAsync"/> to get or fresh the access token.
+    /// An AccessTokenItem will refresh its access token in accordance with <see cref="AccessToken.RefreshOn"/>.
+    /// This will maintain a valid access token and enable <see cref="GetToken"/> or <see cref="GetTokenAsync"/> to return immediately.
     /// </para>
     /// </remarks>
     private class AccessTokenItem
     {
-        /// <summary>
-        /// The message to throw when the access token is unavailable.
-        /// </summary>
-        private static readonly string _unavailableMessage = "The ChainedTokenCredential failed to retrieve a token from the included credentials.\n- WorkloadIdentityCredential authentication unavailable. The workload options are not fully configured. See the troubleshooting guide for more information. https://aka.ms/azsdk/net/identity/workloadidentitycredential/troubleshoot\n- Please run 'az login' to set up account";
-
         /// <summary>
         /// The <see cref="ILogger"> used to perform logging.
         /// </summary>
@@ -247,6 +232,16 @@ internal class NamedCredential(
         /// The underlying <see cref="AccessToken"/>.
         /// </summary>
         private AccessToken? _accessToken;
+
+        /// <summary>
+        /// The message to throw when the access token is unavailable.
+        /// </summary>
+        private string? _unavailableMessage;
+
+        /// <summary>
+        /// The inner exception to include when the access token is unavailable.
+        /// </summary>
+        private Exception? _unavailableInnerException;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AccessTokenItem"/>.
@@ -282,7 +277,7 @@ internal class NamedCredential(
             TokenCredential tokenCredential,
             TokenRequestContextKey tokenRequestContextKey)
         {
-            // create the accessTokenItem, get its token, and schedule the refresh
+            // create the accessTokenItem and schedule the refresh (to get its access token)
             // this will set _accessToken
             var accessTokenItem = new AccessTokenItem(
                 logger,
@@ -300,7 +295,10 @@ internal class NamedCredential(
         /// </summary>
         public AccessToken GetToken()
         {
-            lock (this) return _accessToken ?? throw new CredentialUnavailableException(_unavailableMessage);
+            lock (this)
+            {
+                return _accessToken ?? throw new CredentialUnavailableException(_unavailableMessage, _unavailableInnerException);
+            }
         }
 
         /// <summary>
@@ -309,12 +307,17 @@ internal class NamedCredential(
         /// <returns>A <see cref="AccessTokenStatus"/> describing the status of this access token.</returns>
         public AccessTokenStatus GetStatus()
         {
-            var health = GetHealth(out var expiresOn);
+            lock (this)
+            {
+                var health = ((_accessToken?.ExpiresOn ?? DateTimeOffset.MinValue) < DateTimeOffset.UtcNow)
+                    ? AccessTokenHealth.Expired
+                    : AccessTokenHealth.Valid;
 
-            return new AccessTokenStatus(
-                Health: health,
-                TokenRequestContext: _tokenRequestContextKey.ToTokenRequestContext(),
-                ExpiresOn: expiresOn);
+                return new AccessTokenStatus(
+                    Health: health,
+                    TokenRequestContext: _tokenRequestContextKey.ToTokenRequestContext(),
+                    ExpiresOn: _accessToken?.ExpiresOn);
+            }
         }
 
         /// <summary>
@@ -324,7 +327,7 @@ internal class NamedCredential(
         private void Refresh(object? state)
         {
             _logger.LogInformation(
-                "NamedCredential.Refresh: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}'...",
+                "AccessTokenItem.Refresh: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}'...",
                 _credentialName,
                 _tokenRequestContextKey.Claims,
                 _tokenRequestContextKey.IsCaeEnabled,
@@ -349,7 +352,7 @@ internal class NamedCredential(
                 var refreshOn = accessToken.RefreshOn ?? accessToken.ExpiresOn;
 
                 _logger.LogInformation(
-                    "NamedCredential.RefreshOn: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', refreshOn: '{refreshOn:o}'.",
+                    "AccessTokenItem.RefreshOn: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', refreshOn: '{refreshOn:o}'.",
                     _credentialName,
                     _tokenRequestContextKey.Claims,
                     _tokenRequestContextKey.IsCaeEnabled,
@@ -359,6 +362,19 @@ internal class NamedCredential(
 
                 dueTime = refreshOn - DateTimeOffset.UtcNow;
             }
+            catch (CredentialUnavailableException ex)
+            {
+                SetUnavailable(ex);
+
+                _logger.LogError(
+                    "AccessTokenItem.CredentialUnavailableException: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', message: '{message:}'.",
+                    _credentialName,
+                    _tokenRequestContextKey.Claims,
+                    _tokenRequestContextKey.IsCaeEnabled,
+                    string.Join(", ", _tokenRequestContextKey.Scopes),
+                    _tokenRequestContextKey.TenantId,
+                    ex.Message);
+            }
             catch
             {
             }
@@ -367,27 +383,32 @@ internal class NamedCredential(
         }
 
         /// <summary>
-        /// Gets the <see cref="AccessTokenHealth"/> for this access token.
+        /// Sets the <see cref="AccessToken"/> for this object.
         /// </summary>
-        /// <returns>A <see cref="AccessTokenHealth"/> describing the health of this access token.</returns>
-        private AccessTokenHealth GetHealth(out DateTimeOffset? expiresOn)
+        private void SetAccessToken(
+            AccessToken accessToken)
         {
             lock (this)
             {
-                expiresOn = _accessToken?.ExpiresOn;
+                _accessToken = accessToken;
 
-                return ((_accessToken?.ExpiresOn ?? DateTimeOffset.MinValue) < DateTimeOffset.UtcNow)
-                    ? AccessTokenHealth.Expired
-                    : AccessTokenHealth.Valid;
+                _unavailableMessage = null;
+                _unavailableInnerException = null;
             }
         }
 
         /// <summary>
-        /// Sets the <see cref="AccessToken"/> for this object.
+        /// Sets the message to throw when the access token is unavailable.
         /// </summary>
-        private void SetAccessToken(AccessToken accessToken)
+        /// <param name="ex">The <see cref="CredentialUnavailableException"/> with the message to throw when the access token is unavailable.</param>
+        private void SetUnavailable(
+            CredentialUnavailableException ex)
         {
-            lock (this) _accessToken = accessToken;
+            lock (this)
+            {
+                _unavailableMessage = ex.Message;
+                _unavailableInnerException = ex.InnerException;
+            }
         }
     }
 }
