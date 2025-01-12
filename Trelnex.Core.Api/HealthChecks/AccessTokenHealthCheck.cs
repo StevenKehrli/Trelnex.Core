@@ -15,7 +15,7 @@ internal class AccessTokenHealthCheck(
         HealthCheckContext context,
         CancellationToken cancellationToken = new CancellationToken())
     {
-        var credentialStatus = CredentialFactory.GetStatus(credentialName);
+        var credentialStatus = CredentialFactory.Instance.GetStatus(credentialName);
 
         var data = new Dictionary<string, object>()
         {

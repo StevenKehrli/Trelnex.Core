@@ -35,8 +35,8 @@ public static class CosmosCommandProvidersExtensions
         var options = CosmosCommandProviderOptions.Parse(providerConfiguration);
 
         // create our factory
-        var cosmosClientOptions = GetCosmosClientOptions(bootstrapLogger, options);
-        var keyResolverOptions = GetKeyResolverOptions(bootstrapLogger, options);
+        var cosmosClientOptions = GetCosmosClientOptions(options);
+        var keyResolverOptions = GetKeyResolverOptions(options);
 
         var factory = CosmosCommandProviderFactory.Create(
             cosmosClientOptions,
@@ -65,15 +65,13 @@ public static class CosmosCommandProvidersExtensions
     /// Initializes an <see cref="AccessToken"/> with the necessary <see cref="CosmosClient"/> scopes.
     /// </para>
     /// </remarks>
-    /// <param name="bootstrapLogger">The <see cref="ILogger"/> to write the CommandProvider bootstrap logs.</param>
     /// <param name="options">The <see cref="CosmosCommandProviderOptions"/>.</param>
     /// <returns>A valid <see cref="CosmosClientOptions"/>.</returns>
     private static CosmosClientOptions GetCosmosClientOptions(
-        ILogger bootstrapLogger,
         CosmosCommandProviderOptions options)
     {
         // get the token credential and initialize
-        var tokenCredential = CredentialFactory.Get(bootstrapLogger, "CosmosClient");
+        var tokenCredential = CredentialFactory.Instance.Get("CosmosClient");
 
         // format the scope
         var uri = new Uri(options.EndpointUri);
@@ -105,15 +103,13 @@ public static class CosmosCommandProvidersExtensions
     /// Initializes an <see cref="AccessToken"/> with the necessary <see cref="KeyResolver"/> scopes.
     /// </para>
     /// </remarks>
-    /// <param name="bootstrapLogger">The <see cref="ILogger"/> to write the CommandProvider bootstrap logs.</param>
     /// <param name="options">The <see cref="CosmosCommandProviderOptions"/>.</param>
     /// <returns>A valid <see cref="KeyResolverOptions"/>.</returns>
     private static KeyResolverOptions GetKeyResolverOptions(
-        ILogger bootstrapLogger,
         CosmosCommandProviderOptions options)
     {
         // get the token credential and initialize
-        var tokenCredential = CredentialFactory.Get(bootstrapLogger, "KeyResolver");
+        var tokenCredential = CredentialFactory.Instance.Get("KeyResolver");
 
         var tokenRequestContext = new TokenRequestContext(
             scopes: ["https://vault.azure.net/.default"],
