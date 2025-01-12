@@ -4,6 +4,7 @@ using Microsoft.Azure.Cosmos.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Trelnex.Core.Api.CommandProviders;
+using Trelnex.Core.Api.Identity;
 using Trelnex.Core.Api.Serilog;
 using Trelnex.Core.Data;
 using Trelnex.Core.Data.Tests.CommandProviders;
@@ -56,13 +57,17 @@ public class CosmosCommandProviderTests : CommandProviderTests
             configuration,
             "Trelnex.Integration.Tests");
 
-        services.AddCosmosCommandProviders(
-            configuration,
-            bootstrapLogger,
-            options => options.Add<ITestItem, TestItem>(
-                typeName: "test-item",
-                validator: TestItem.Validator,
-                commandOperations: CommandOperations.All));
+        services
+            .AddCredentialFactory(
+                configuration,
+                bootstrapLogger)
+            .AddCosmosCommandProviders(
+                configuration,
+                bootstrapLogger,
+                options => options.Add<ITestItem, TestItem>(
+                    typeName: "test-item",
+                    validator: TestItem.Validator,
+                    commandOperations: CommandOperations.All));
 
         var serviceProvider = services.BuildServiceProvider();
 

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Trelnex.Core.Api.CommandProviders;
+using Trelnex.Core.Api.Identity;
 using Trelnex.Core.Api.Serilog;
 using Trelnex.Core.Data;
 using Trelnex.Core.Data.Tests.CommandProviders;
@@ -25,6 +26,8 @@ public class CosmosCommandProviderExtensionsTests
         var bootstrapLogger = services.AddSerilog(
             configuration,
             "Trelnex.Integration.Tests");
+
+        services.AddCredentialFactory(configuration, bootstrapLogger);
 
         // add twice
         Assert.Throws<InvalidOperationException>(() =>

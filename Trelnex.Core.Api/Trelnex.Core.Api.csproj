@@ -35,8 +35,8 @@
         <PackageReference Include="Serilog.Expressions" Version="5.0.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
         <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="7.2.0" />
-        <PackageReference Include="Trelnex.Core.Client" Version="2.0.0" />
-        <PackageReference Include="Trelnex.Core.Data" Version="5.1.0" />
+        <PackageReference Include="Trelnex.Core.Client" Version="3.0.0" />
+        <PackageReference Include="Trelnex.Core.Data" Version="5.2.0" />
     </ItemGroup>
 
 </Project>

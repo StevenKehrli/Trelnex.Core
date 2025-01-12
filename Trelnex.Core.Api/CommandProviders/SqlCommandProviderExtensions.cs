@@ -35,7 +35,7 @@ public static class SqlCommandProvidersExtensions
         var options = SqlCommandProviderOptions.Parse(providerConfiguration);
 
         // create our factory
-        var sqlClientOptions = GetSqlClientOptions(bootstrapLogger, options);
+        var sqlClientOptions = GetSqlClientOptions(options);
 
         var factory = SqlCommandProviderFactory.Create(
             sqlClientOptions).Result;
@@ -63,15 +63,13 @@ public static class SqlCommandProvidersExtensions
     /// Initializes an <see cref="AccessToken"/> with the necessary <see cref="SqlClient"/> scopes.
     /// </para>
     /// </remarks>
-    /// <param name="bootstrapLogger">The <see cref="ILogger"/> to write the CommandProvider bootstrap logs.</param>
     /// <param name="options">The <see cref="SqlCommandProviderOptions"/>.</param>
     /// <returns>A valid <see cref="SqlClientOptions"/>.</returns>
     private static SqlClientOptions GetSqlClientOptions(
-        ILogger bootstrapLogger,
         SqlCommandProviderOptions options)
     {
         // get the token credential and initialize
-        var tokenCredential = CredentialFactory.Get(bootstrapLogger, "SqlClient");
+        var tokenCredential = CredentialFactory.Instance.Get("SqlClient");
 
         // format the scope
         var scope = "https://database.windows.net/.default";
