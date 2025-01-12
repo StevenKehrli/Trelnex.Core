@@ -60,20 +60,23 @@ internal class NamedCredential(
     }
 
     /// <summary>
-    /// Gets the <see cref="CredentialStatus"/> for this credential.
+    /// Gets the array of <see cref="AccessTokenStatus"/> for this credential.
     /// </summary>
-    /// <returns>A <see cref="CredentialStatus"/> describing the status of this credential.</returns>
-    public CredentialStatus GetStatus()
+    /// <returns>An array of <see cref="AccessTokenStatus"/> describing the status of this credential.</returns>
+    public AccessTokenStatus[] GetStatus()
     {
-        var statuses = _accessTokenItemsByTokenRequestContextKey.Select(kvp =>
-        {
-            var lazy = kvp.Value;
-            var accessTokenItem = lazy.Value;
+        // get the access token item
+        var statuses = _accessTokenItemsByTokenRequestContextKey
+            .Select(kvp =>
+            {
+                var lazy = kvp.Value;
+                var accessTokenItem = lazy.Value;
 
-            return accessTokenItem.GetStatus();
-        }).ToArray();
+                return accessTokenItem.GetStatus();
+            })
+            .ToArray();
 
-        return new CredentialStatus(credentialName, statuses);
+        return statuses ?? [];
     }
 
     /// <summary>

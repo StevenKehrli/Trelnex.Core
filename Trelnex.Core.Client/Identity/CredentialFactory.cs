@@ -97,24 +97,23 @@ public class CredentialFactory
     }
 
     /// <summary>
-    /// Gets the <see cref="CredentialStatus"/> for the specified credential.
+    /// Gets the array of <see cref="CredentialStatus"/> for all credentials.
     /// </summary>
-    /// <param name="credentialName">The name of the specified credential.</param>
-    /// <returns>The <see cref="CredentialStatus"/>.</returns>
-    /// <exception cref="KeyNotFoundException">.</exception>
-    public CredentialStatus GetStatus(
-        string credentialName)
+    /// <returns>The array of <see cref="CredentialStatus"/>.</returns>
+    public CredentialStatus[] GetStatus()
     {
-        if (_namedCredentialsByName.TryGetValue(credentialName, out var lazyCredential))
-        {
-            return lazyCredential.Value.GetStatus();
-        }
+        return _namedCredentialsByName
+            .Select(kvp => 
+            {
+                var credentialName = kvp.Key;
 
-        throw new KeyNotFoundException();
+                var lazyNamedCredential = kvp.Value;
+                var namedCredential = lazyNamedCredential.Value;
+
+                return new CredentialStatus(
+                    credentialName: credentialName,
+                    getAccessTokenStatus: namedCredential.GetStatus);
+            })
+            .ToArray();
     }
-
-    /// <summary>
-    /// Gets the array of known credential names.
-    /// </summary>
-    public string[] CredentialNames => _namedCredentialsByName.Keys.ToArray();
 }
