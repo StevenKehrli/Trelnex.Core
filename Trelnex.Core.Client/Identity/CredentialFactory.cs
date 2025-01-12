@@ -114,6 +114,7 @@ public class CredentialFactory
                     credentialName: credentialName,
                     getAccessTokenStatus: namedCredential.GetStatus);
             })
+            .OrderBy(status => status.CredentialName)
             .ToArray();
     }
 }

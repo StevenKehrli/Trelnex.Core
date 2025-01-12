@@ -74,6 +74,7 @@ internal class NamedCredential(
 
                 return accessTokenItem.GetStatus();
             })
+            .OrderBy(status => string.Join(", ", status.TokenRequestContext.Scopes))
             .ToArray();
 
         return statuses ?? [];
