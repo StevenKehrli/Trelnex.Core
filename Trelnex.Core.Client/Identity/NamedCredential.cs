@@ -360,19 +360,16 @@ internal class NamedCredential(
             }
             catch (CredentialUnavailableException ex)
             {
-                var errors = ParseUnavailable(ex);
-
                 SetUnavailable(ex.Message, ex.InnerException);
 
                 _logger.LogError(
-                    "AccessTokenProvider.CredentialUnavailableException: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', message: '{message:}', errors: {errors}.",
+                    "AccessTokenProvider.CredentialUnavailableException: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', message: '{message:}'.",
                     _credentialName,
                     _tokenRequestContextKey.Claims,
                     _tokenRequestContextKey.IsCaeEnabled,
                     string.Join(", ", _tokenRequestContextKey.Scopes),
                     _tokenRequestContextKey.TenantId,
-                    ex.Message,
-                    errors);
+                    ex.Message);
             }
             catch
             {
@@ -410,23 +407,6 @@ internal class NamedCredential(
                 _unavailableMessage = message;
                 _unavailableInnerException = innerException;
             }
-        }
-
-        /// <summary>
-        /// Parses the exceptions from the <see cref="CredentialUnavailableException"/> into an array of errors.
-        /// </summary>
-        /// <param name="ex">The <see cref="CredentialUnavailableException"/> to parse.</param>
-        /// <returns>An array of errors containing the messages of the exceptions.</returns>
-        private static string[]? ParseUnavailable(
-            CredentialUnavailableException ex)
-        {
-            // get the inner exception as an aggregate exception
-            var aggregateException = ex.InnerException as AggregateException;
-
-            // return its inner exception messages as the array of errors
-            return aggregateException?.InnerExceptions
-                .Select(ie => ie.Message)
-                .ToArray();
         }
     }
 }
