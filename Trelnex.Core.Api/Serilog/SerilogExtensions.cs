@@ -27,16 +27,20 @@ public static class SerilogExtensions
         // add serilog
         // https://github.com/serilog/serilog-aspnetcore?tab=readme-ov-file#two-stage-initialization
 
+        var formatter = new RenderedCompactJsonFormatter();
+
         Log.Logger = new LoggerConfiguration()
             .Enrich.FromLogContext()
-            .WriteTo.Console(new RenderedCompactJsonFormatter())
+            .WriteTo.Console(formatter)
+            .WriteTo.Debug(formatter)
             .CreateBootstrapLogger();
 
         services.AddSerilog((services, lc) => lc
             .ReadFrom.Configuration(configuration)
             .ReadFrom.Services(services)
             .Enrich.FromLogContext()
-            .WriteTo.Console(new RenderedCompactJsonFormatter()));
+            .WriteTo.Console(formatter)
+            .WriteTo.Debug(formatter));
 
         return new SerilogLoggerFactory(Log.Logger).CreateLogger(bootstrapCategoryName);
     }
