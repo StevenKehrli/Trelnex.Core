@@ -2,7 +2,7 @@ using Azure.Core;
 
 namespace Trelnex.Core.Client.Identity;
 
-public interface IAccessTokenProvider
+public interface ITokenProvider
 {
     /// <summary>
     /// Gets the status of this token provider.
