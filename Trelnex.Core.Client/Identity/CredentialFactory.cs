@@ -103,7 +103,7 @@ public class CredentialFactory
     public CredentialStatus[] GetStatus()
     {
         return _namedCredentialsByName
-            .Select(kvp => 
+            .Select(kvp =>
             {
                 var credentialName = kvp.Key;
 
