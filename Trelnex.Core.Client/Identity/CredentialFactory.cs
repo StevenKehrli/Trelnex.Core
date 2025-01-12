@@ -77,7 +77,7 @@ public class CredentialFactory
             _namedCredentialsByName.GetOrAdd(
                 key: credentialName,
                 value: new Lazy<NamedCredential>(
-                    () => new NamedCredential(_logger, _credential, credentialName)));
+                    () => new NamedCredential(_logger, credentialName, _credential)));
 
         return lazyNamedCredential.Value;
     }
