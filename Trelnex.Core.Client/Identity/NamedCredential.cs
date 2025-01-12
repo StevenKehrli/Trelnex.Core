@@ -74,6 +74,7 @@ internal class NamedCredential(
 
                 return accessTokenItem.GetStatus();
             })
+            .OrderBy(status => string.Join(", ", status.TokenRequestContext.Scopes))
             .ToArray();
 
         return statuses ?? [];
@@ -363,7 +364,7 @@ internal class NamedCredential(
             }
             catch (CredentialUnavailableException ex)
             {
-                SetUnavailable(ex.Message, ex.InnerException);
+                SetUnavailable(ex);
 
                 _logger.LogError(
                     "AccessTokenItem.CredentialUnavailableException: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', message: '{message:}'.",
@@ -399,16 +400,14 @@ internal class NamedCredential(
         /// <summary>
         /// Sets the message to throw when the access token is unavailable.
         /// </summary>
-        /// <param name="message">The message to throw when the access token is unavailable.</param>
-        /// <param name="innerException">The inner exception to include when the access token is unavailable.</param>
+        /// <param name="ex">The <see cref="CredentialUnavailableException"/> with the message to throw when the access token is unavailable.</param>
         private void SetUnavailable(
-            string message,
-            Exception? innerException)
+            CredentialUnavailableException ex)
         {
             lock (this)
             {
-                _unavailableMessage = message;
-                _unavailableInnerException = innerException;
+                _unavailableMessage = ex.Message;
+                _unavailableInnerException = ex.InnerException;
             }
         }
     }

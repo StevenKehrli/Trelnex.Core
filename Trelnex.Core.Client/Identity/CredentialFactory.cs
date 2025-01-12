@@ -103,7 +103,7 @@ public class CredentialFactory
     public CredentialStatus[] GetStatus()
     {
         return _namedCredentialsByName
-            .Select(kvp => 
+            .Select(kvp =>
             {
                 var credentialName = kvp.Key;
 
@@ -114,6 +114,7 @@ public class CredentialFactory
                     credentialName: credentialName,
                     getAccessTokenStatus: namedCredential.GetStatus);
             })
+            .OrderBy(status => status.CredentialName)
             .ToArray();
     }
 }
