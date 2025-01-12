@@ -317,12 +317,17 @@ internal class NamedCredential(
         /// <returns>A <see cref="AccessTokenStatus"/> describing the status of this access token.</returns>
         public AccessTokenStatus GetStatus()
         {
-            var health = GetHealth(out var expiresOn);
+            lock (this)
+            {
+                var health = ((_accessToken?.ExpiresOn ?? DateTimeOffset.MinValue) < DateTimeOffset.UtcNow)
+                    ? AccessTokenHealth.Expired
+                    : AccessTokenHealth.Valid;
 
-            return new AccessTokenStatus(
-                Health: health,
-                TokenRequestContext: _tokenRequestContextKey.ToTokenRequestContext(),
-                ExpiresOn: expiresOn);
+                return new AccessTokenStatus(
+                    Health: health,
+                    TokenRequestContext: _tokenRequestContextKey.ToTokenRequestContext(),
+                    ExpiresOn: _accessToken?.ExpiresOn);
+            }
         }
 
         /// <summary>
@@ -388,22 +393,6 @@ internal class NamedCredential(
             }
 
             _timer.Change(dueTime, Timeout.InfiniteTimeSpan);
-        }
-
-        /// <summary>
-        /// Gets the <see cref="AccessTokenHealth"/> for this access token.
-        /// </summary>
-        /// <returns>A <see cref="AccessTokenHealth"/> describing the health of this access token.</returns>
-        private AccessTokenHealth GetHealth(out DateTimeOffset? expiresOn)
-        {
-            lock (this)
-            {
-                expiresOn = _accessToken?.ExpiresOn;
-
-                return ((_accessToken?.ExpiresOn ?? DateTimeOffset.MinValue) < DateTimeOffset.UtcNow)
-                    ? AccessTokenHealth.Expired
-                    : AccessTokenHealth.Valid;
-            }
         }
 
         /// <summary>
