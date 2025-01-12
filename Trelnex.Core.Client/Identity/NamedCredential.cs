@@ -26,9 +26,9 @@ internal class NamedCredential(
     TokenCredential tokenCredential) : TokenCredential
 {
     /// <summary>
-    /// A thread-safe collection of <see cref="TokenRequestContext"/> to <see cref="TokenProvider"/>.
+    /// A thread-safe collection of <see cref="TokenRequestContext"/> to <see cref="AccessTokenItem"/>.
     /// </summary>
-    private readonly ConcurrentDictionary<TokenRequestContextKey, Lazy<TokenProvider>> _tokenProvidersByTokenRequestContextKey = new();
+    private readonly ConcurrentDictionary<TokenRequestContextKey, Lazy<AccessTokenItem>> _accessTokenItemsByTokenRequestContextKey = new();
 
     public override AccessToken GetToken(
         TokenRequestContext tokenRequestContext,
@@ -38,17 +38,17 @@ internal class NamedCredential(
         var key = TokenRequestContextKey.FromTokenRequestContext(tokenRequestContext);
 
         // https://andrewlock.net/making-getoradd-on-concurrentdictionary-thread-safe-using-lazy/
-        var lazyTokenProvider =
-            _tokenProvidersByTokenRequestContextKey.GetOrAdd(
+        var lazyAccessTokenItem =
+            _accessTokenItemsByTokenRequestContextKey.GetOrAdd(
                 key: key,
-                value: new Lazy<TokenProvider>(
-                    TokenProvider.Create(
+                value: new Lazy<AccessTokenItem>(
+                    AccessTokenItem.Create(
                         logger,
                         credentialName,
                         tokenCredential,
                         key)));
 
-        return lazyTokenProvider.Value.GetToken();
+        return lazyAccessTokenItem.Value.GetToken();
     }
 
     public override ValueTask<AccessToken> GetTokenAsync(
@@ -65,12 +65,12 @@ internal class NamedCredential(
     /// <returns>A <see cref="CredentialStatus"/> describing the status of this credential.</returns>
     public CredentialStatus GetStatus()
     {
-        var statuses = _tokenProvidersByTokenRequestContextKey.Select(kvp =>
+        var statuses = _accessTokenItemsByTokenRequestContextKey.Select(kvp =>
         {
             var lazy = kvp.Value;
-            var tokenProvider = lazy.Value;
+            var accessTokenItem = lazy.Value;
 
-            return tokenProvider.GetStatus();
+            return accessTokenItem.GetStatus();
         }).ToArray();
 
         return new CredentialStatus(credentialName, statuses);
@@ -81,7 +81,7 @@ internal class NamedCredential(
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is used as the key to <see cref="_tokenProvidersByTokenRequestContextKey"/>.
+    /// This is used as the key to <see cref="_accessTokenItemsByTokenRequestContextKey"/>.
     /// </para>
     /// <para>
     /// This is a class (reference type) alternative to the struct (value type) of <see cref="TokenRequestContext"/>.
@@ -91,7 +91,7 @@ internal class NamedCredential(
     /// It is not used by <see cref="GetToken"/> and <see cref="GetTokenAsync"/>.
     /// </para>
     /// <para>
-    /// This implements the <see cref="Equals"/> and <see cref="GetHashCode"/> necessary for the <see cref="_tokenProvidersByTokenRequestContextKey"/>.
+    /// This implements the <see cref="Equals"/> and <see cref="GetHashCode"/> necessary for the <see cref="_accessTokenItemsByTokenRequestContextKey"/>.
     /// </para>
     /// </remarks>
     /// <param name="claims">Additional claims to be included in the token.</param>
@@ -193,11 +193,11 @@ internal class NamedCredential(
     /// </summary>
     /// <remarks>
     /// <para>
-    /// An TokenProvider will refresh its access token in accordance with <see cref="AccessToken.RefreshOn"/>.
+    /// An AccessTokenItem will refresh its access token in accordance with <see cref="AccessToken.RefreshOn"/>.
     /// This will maintain a valid access token and enable <see cref="GetToken"/> or <see cref="GetTokenAsync"/> to return immediately.
     /// </para>
     /// </remarks>
-    private class TokenProvider : ITokenProvider
+    private class AccessTokenItem
     {
         /// <summary>
         /// The <see cref="ILogger"> used to perform logging.
@@ -240,13 +240,13 @@ internal class NamedCredential(
         private Exception? _unavailableInnerException;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="TokenProvider"/>.
+        /// Initializes a new instance of the <see cref="AccessTokenItem"/>.
         /// </summary>
         /// <param name="logger">The <see cref="ILogger"> used to perform logging.</param>
         /// <param name="credentialName">The name of this <see cref="TokenCredential"/>.</param>
         /// <param name="tokenCredential">The <see cref="TokenCredential"/> capable of providing a <see cref="AccessToken"/>.</param>
         /// <param name="tokenRequestContextKey">The <see cref="TokenRequestContextKey"/> containing the details of an authentication token request.</param>
-        private TokenProvider(
+        private AccessTokenItem(
             ILogger logger,
             string credentialName,
             TokenCredential tokenCredential,
@@ -261,29 +261,29 @@ internal class NamedCredential(
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="TokenProvider"/>.
+        /// Initializes a new instance of the <see cref="AccessTokenItem"/>.
         /// </summary>
         /// <param name="logger">The <see cref="ILogger"> used to perform logging.</param>
         /// <param name="credentialName">The name of this <see cref="TokenCredential"/>.</param>
         /// <param name="tokenCredential">The <see cref="TokenCredential"/> capable of providing a <see cref="AccessToken"/>.</param>
         /// <param name="tokenRequestContextKey">The <see cref="TokenRequestContextKey"/> containing the details of an authentication token request.</param>
-        public static TokenProvider Create(
+        public static AccessTokenItem Create(
             ILogger logger,
             string credentialName,
             TokenCredential tokenCredential,
             TokenRequestContextKey tokenRequestContextKey)
         {
-            // create the tokenProvider and schedule the refresh (to get its access token)
+            // create the accessTokenItem and schedule the refresh (to get its access token)
             // this will set _accessToken
-            var tokenProvider = new TokenProvider(
+            var accessTokenItem = new AccessTokenItem(
                 logger,
                 credentialName,
                 tokenCredential,
                 tokenRequestContextKey);
 
-            tokenProvider.Refresh(null);
+            accessTokenItem.Refresh(null);
 
-            return tokenProvider;
+            return accessTokenItem;
         }
 
         /// <summary>
@@ -323,7 +323,7 @@ internal class NamedCredential(
         private void Refresh(object? state)
         {
             _logger.LogInformation(
-                "TokenProvider.Refresh: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}'...",
+                "AccessTokenItem.Refresh: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}'...",
                 _credentialName,
                 _tokenRequestContextKey.Claims,
                 _tokenRequestContextKey.IsCaeEnabled,
@@ -348,7 +348,7 @@ internal class NamedCredential(
                 var refreshOn = accessToken.RefreshOn ?? accessToken.ExpiresOn;
 
                 _logger.LogInformation(
-                    "TokenProvider.RefreshOn: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', refreshOn: '{refreshOn:o}'.",
+                    "AccessTokenItem.RefreshOn: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', refreshOn: '{refreshOn:o}'.",
                     _credentialName,
                     _tokenRequestContextKey.Claims,
                     _tokenRequestContextKey.IsCaeEnabled,
@@ -360,19 +360,16 @@ internal class NamedCredential(
             }
             catch (CredentialUnavailableException ex)
             {
-                var errors = ParseUnavailable(ex);
-
                 SetUnavailable(ex.Message, ex.InnerException);
 
                 _logger.LogError(
-                    "TokenProvider.CredentialUnavailableException: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', message: '{message:}', errors: {errors}.",
+                    "AccessTokenItem.CredentialUnavailableException: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', message: '{message:}'.",
                     _credentialName,
                     _tokenRequestContextKey.Claims,
                     _tokenRequestContextKey.IsCaeEnabled,
                     string.Join(", ", _tokenRequestContextKey.Scopes),
                     _tokenRequestContextKey.TenantId,
-                    ex.Message,
-                    errors);
+                    ex.Message);
             }
             catch
             {
@@ -410,23 +407,6 @@ internal class NamedCredential(
                 _unavailableMessage = message;
                 _unavailableInnerException = innerException;
             }
-        }
-
-        /// <summary>
-        /// Parses the exceptions from the <see cref="CredentialUnavailableException"/> into an array of errors.
-        /// </summary>
-        /// <param name="ex">The <see cref="CredentialUnavailableException"/> to parse.</param>
-        /// <returns>An array of errors containing the messages of the exceptions.</returns>
-        private static string[]? ParseUnavailable(
-            CredentialUnavailableException ex)
-        {
-            // get the inner exception as an aggregate exception
-            var aggregateException = ex.InnerException as AggregateException;
-
-            // return its inner exception messages as the array of errors
-            return aggregateException?.InnerExceptions
-                .Select(ie => ie.Message)
-                .ToArray();
         }
     }
 }
