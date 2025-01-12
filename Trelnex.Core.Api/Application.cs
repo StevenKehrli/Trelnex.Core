@@ -70,10 +70,7 @@ public static class Application
         addApplication(builder.Services, builder.Configuration, bootstrapLogger);
 
         // validate authentication was configured
-        if (AuthenticationExtensions.IsReady is false)
-        {
-            throw new InvalidOperationException("Authentication has not been configured.");
-        }
+        builder.Services.ThrowIfAuthenticationNotAdded();
 
         // add prometheus metrics server and http client metrics
         builder.Services.AddPrometheus(builder.Configuration);

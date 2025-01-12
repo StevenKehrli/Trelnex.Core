@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Identity.Web.TokenCacheProviders.InMemory;
@@ -9,10 +10,6 @@ namespace Trelnex.Core.Api.Authentication;
 /// </summary>
 public static class AuthenticationExtensions
 {
-    private static string? _method = null;
-
-    public static bool IsReady => _method is not null;
-
     /// <summary>
     /// Add Authentication and Authorization to the <see cref="IServiceCollection"/>.
     /// </summary>
@@ -23,12 +20,7 @@ public static class AuthenticationExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        if (IsReady)
-        {
-            throw new InvalidOperationException($"{_method} has already been called.");
-        }
-
-        _method = nameof(AddAuthentication);
+        services.ThrowIfSecurityProviderAdded();
 
         services.AddInMemoryTokenCaches();
 
@@ -48,12 +40,7 @@ public static class AuthenticationExtensions
     public static void NoAuthentication(
         this IServiceCollection services)
     {
-        if (IsReady)
-        {
-            throw new InvalidOperationException($"{_method} has already been called.");
-        }
-
-        _method = nameof(NoAuthentication);
+        services.ThrowIfSecurityProviderAdded();
 
         services.AddHttpContextAccessor();
 
@@ -63,5 +50,29 @@ public static class AuthenticationExtensions
         // inject an empty security provider
         var securityProvider = new SecurityProvider();
         services.AddSingleton<ISecurityProvider>(securityProvider);
+    }
+
+    public static void ThrowIfAuthenticationNotAdded(
+        this IServiceCollection services)
+    {
+        // check if authentication was added
+        var added = services.Any(x => x.ServiceType == typeof(IAuthenticationService));
+
+        if (added is false)
+        {
+            throw new InvalidOperationException("Authentication has not been configured.");
+        }
+    }
+
+    private static void ThrowIfSecurityProviderAdded(
+        this IServiceCollection services)
+    {
+        // check if security provider was added
+        var added = services.Any(x => x.ServiceType == typeof(ISecurityProvider));
+
+        if (added is true)
+        {
+            throw new InvalidOperationException($"{nameof(AddAuthentication)} or {nameof(NoAuthentication)} has already been configured.");
+        }
     }
 }
