@@ -197,7 +197,7 @@ internal class NamedCredential(
     /// This will maintain a valid access token and enable <see cref="GetToken"/> or <see cref="GetTokenAsync"/> to return immediately.
     /// </para>
     /// </remarks>
-    private class AccessTokenItem : IAccessTokenItem
+    private class AccessTokenItem
     {
         /// <summary>
         /// The <see cref="ILogger"> used to perform logging.
