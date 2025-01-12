@@ -49,7 +49,21 @@ public class CredentialFactory
         CredentialFactoryOptions options)
     {
         // create the credential
-        var credential = GetCredential(options);
+        if (options?.Sources == null || options.Sources.Length == 0)
+        {
+            throw new ArgumentNullException(nameof(options.Sources));
+        }
+
+        var sources = options.Sources
+            .Select(source => source switch
+            {
+                CredentialSource.WorkloadIdentity => new WorkloadIdentityCredential() as TokenCredential,
+                CredentialSource.AzureCli => new AzureCliCredential() as TokenCredential,
+                _ => throw new ArgumentOutOfRangeException()
+            })
+            .ToArray();
+
+        var credential = new ChainedTokenCredential(sources);
 
         _instance = new CredentialFactory(logger, credential);
     }
@@ -103,29 +117,4 @@ public class CredentialFactory
     /// Gets the array of known credential names.
     /// </summary>
     public string[] CredentialNames => _namedCredentialsByName.Keys.ToArray();
-
-    /// <summary>
-    /// Create a new <see cref="ChainedTokenCredential"/> combining <see cref="WorkloadIdentityCredential"/> and <see cref="AzureCliCredential"/>.
-    /// </summary>
-    /// <param name="options">The <see cref="CredentialFactoryOptions"/>.</param>
-    /// <returns>The <see cref="TokenCredential"/>.</returns>
-    private static TokenCredential GetCredential(
-        CredentialFactoryOptions options)
-    {
-        if (options?.Sources == null || options.Sources.Length == 0)
-        {
-            throw new ArgumentNullException(nameof(options.Sources));
-        }
-
-        var sources = options.Sources
-            .Select(source => source switch
-            {
-                CredentialSource.WorkloadIdentity => new WorkloadIdentityCredential() as TokenCredential,
-                CredentialSource.AzureCli => new AzureCliCredential() as TokenCredential,
-                _ => throw new ArgumentOutOfRangeException()
-            })
-            .ToArray();
-
-        return new ChainedTokenCredential(sources);
-    }
 }
