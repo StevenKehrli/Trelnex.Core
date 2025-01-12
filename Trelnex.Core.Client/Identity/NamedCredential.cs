@@ -25,12 +25,12 @@ namespace Trelnex.Core.Client.Identity;
 /// </para>
 /// </remarks>
 /// <param name="logger">The <see cref="ILogger"> used to perform logging.</param>
-/// <param name="credentialName">The name of this <see cref="TokenCredential"/>.</param>
 /// <param name="tokenCredential">The underlying <see cref="ChainedTokenCredential"/> (<see cref="WorkloadIdentityCredential"/> and <see cref="AzureCliCredential"/>).</param>
+/// <param name="credentialName">The name of this <see cref="TokenCredential"/>.</param>
 internal class NamedCredential(
     ILogger logger,
-    string credentialName,
-    TokenCredential tokenCredential) : TokenCredential
+    TokenCredential tokenCredential,
+    string credentialName) : TokenCredential
 {
     /// <summary>
     /// A thread-safe collection of <see cref="TokenRequestContext"/> to <see cref="AccessTokenItem"/>.
@@ -214,11 +214,6 @@ internal class NamedCredential(
     private class AccessTokenItem
     {
         /// <summary>
-        /// The message to throw when the access token is unavailable.
-        /// </summary>
-        private static readonly string _unavailableMessage = "The ChainedTokenCredential failed to retrieve a token from the included credentials.\n- WorkloadIdentityCredential authentication unavailable. The workload options are not fully configured. See the troubleshooting guide for more information. https://aka.ms/azsdk/net/identity/workloadidentitycredential/troubleshoot\n- Please run 'az login' to set up account";
-
-        /// <summary>
         /// The <see cref="ILogger"> used to perform logging.
         /// </summary>
         private readonly ILogger _logger;
@@ -247,6 +242,16 @@ internal class NamedCredential(
         /// The underlying <see cref="AccessToken"/>.
         /// </summary>
         private AccessToken? _accessToken;
+
+        /// <summary>
+        /// The message to throw when the access token is unavailable.
+        /// </summary>
+        private string? _unavailableMessage;
+
+        /// <summary>
+        /// The inner exception to include when the access token is unavailable.
+        /// </summary>
+        private Exception? _unavailableInnerException;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AccessTokenItem"/>.
@@ -300,7 +305,10 @@ internal class NamedCredential(
         /// </summary>
         public AccessToken GetToken()
         {
-            lock (this) return _accessToken ?? throw new CredentialUnavailableException(_unavailableMessage);
+            lock (this)
+            {
+                return _accessToken ?? throw new CredentialUnavailableException(_unavailableMessage, _unavailableInnerException);
+            }
         }
 
         /// <summary>
@@ -359,6 +367,22 @@ internal class NamedCredential(
 
                 dueTime = refreshOn - DateTimeOffset.UtcNow;
             }
+            catch (CredentialUnavailableException ex)
+            {
+                var errors = ParseUnavailable(ex);
+
+                SetUnavailable(ex.Message, ex.InnerException);
+
+                _logger.LogError(
+                    "NamedCredential.CredentialUnavailableException: '{credentialName:l}', claims: '{claims:l}', isCaeEnabled: '{isCaeEnabled}', scopes: '{scopes:l}', tenantId: '{tenantId:l}', message: '{message:}', errors: {errors}.",
+                    _credentialName,
+                    _tokenRequestContextKey.Claims,
+                    _tokenRequestContextKey.IsCaeEnabled,
+                    string.Join(", ", _tokenRequestContextKey.Scopes),
+                    _tokenRequestContextKey.TenantId,
+                    ex.Message,
+                    errors);
+            }
             catch
             {
             }
@@ -385,9 +409,49 @@ internal class NamedCredential(
         /// <summary>
         /// Sets the <see cref="AccessToken"/> for this object.
         /// </summary>
-        private void SetAccessToken(AccessToken accessToken)
+        private void SetAccessToken(
+            AccessToken accessToken)
         {
-            lock (this) _accessToken = accessToken;
+            lock (this)
+            {
+                _accessToken = accessToken;
+
+                _unavailableMessage = null;
+                _unavailableInnerException = null;
+            }
+        }
+
+        /// <summary>
+        /// Sets the message to throw when the access token is unavailable.
+        /// </summary>
+        /// <param name="message">The message to throw when the access token is unavailable.</param>
+        /// <param name="innerException">The inner exception to include when the access token is unavailable.</param>
+        private void SetUnavailable(
+            string message,
+            Exception? innerException)
+        {
+            lock (this)
+            {
+                _unavailableMessage = message;
+                _unavailableInnerException = innerException;
+            }
+        }
+
+        /// <summary>
+        /// Parses the exceptions from the <see cref="CredentialUnavailableException"/> into an array of errors.
+        /// </summary>
+        /// <param name="ex">The <see cref="CredentialUnavailableException"/> to parse.</param>
+        /// <returns>An array of errors containing the messages of the exceptions.</returns>
+        private static string[]? ParseUnavailable(
+            CredentialUnavailableException ex)
+        {
+            // get the inner exception as an aggregate exception
+            var aggregateException = ex.InnerException as AggregateException;
+
+            // return its inner exception messages as the array of errors
+            return aggregateException?.InnerExceptions
+                .Select(ie => ie.Message)
+                .ToArray();
         }
     }
 }
