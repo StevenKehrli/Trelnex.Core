@@ -130,3 +130,7 @@ queryCommand.Where(i => i.PublicMessage == "Public #1");
 // get the items as an array of IReadResult<TItem>
 var results = await queryCommand.ToAsyncEnumerable().ToArrayAsync();
 ```
+
+## Third-Party Libraries
+
+See [NOTICE.md](NOTICE.md) for more information.

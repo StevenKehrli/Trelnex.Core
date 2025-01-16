@@ -32,7 +32,7 @@ The business logic and data access are defined in the `HandleRequest` method.
 
 This is a small, self-contained slice that represents the complete functionality to create a user.
 
-In addition, it is easily tested by calling the `HandleRequest` method. See [Specflow](#specflow) for more information.
+In addition, it is easily tested by calling the `HandleRequest` method. See [Reqnroll](#reqnroll) for more information.
 
 ### Vertical Slice Code
 
@@ -703,7 +703,7 @@ In this example, we configure a command provider for the `IUser` interface and i
 
 </details>
 
-## Specflow
+## Reqnroll
 
 <details>
 
@@ -711,10 +711,14 @@ In this example, we configure a command provider for the `IUser` interface and i
 
 &nbsp;
 
-[SpecFlow](https://specflow.org/) is a powerful BDD (Behavior-Driven Development) framework using Gherkin to describe test cases.
+[Reqnroll](https://docs.reqnroll.net/latest/index.html) is a powerful BDD (Behavior-Driven Development) framework using Gherkin to describe test cases.
 
 The [Vertical Slice Architecture](#vertical-slice-architecture) simplifies this integration testing of the HTTP REST APIs. Instead of invoke the HTTP endpoint, we invoke the `HandleRequest` method.
 
 See [Trelnex.Samples](https://github.com/StevenKehrli/Trelnex.Samples?tab=readme-ov-file#trelnexintegrationtests) for more information.
 
 </details>
+
+## Third-Party Libraries
+
+See [NOTICE.md](NOTICE.md) for more information.

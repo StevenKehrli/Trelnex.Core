@@ -27,3 +27,7 @@ See [Azure Identity Overview](https://learn.microsoft.com/en-us/dotnet/azure/sdk
 ## License
 
 See the [LICENSE](LICENSE) file for information.
+
+## Third-Party Libraries
+
+See [NOTICE.md](NOTICE.md) for more information.
